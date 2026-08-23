@@ -130,6 +130,46 @@ jobs:
           print(f"Publishing version {version} (repo {current}, thunderstore {latest})")
           PY
 
+      # Category slugs are community-specific and are not documented in this repo. tcli only
+      # discovers a bad one at the very end and reports an opaque 400, so check up front and
+      # print the valid list. A network failure here is not fatal — publishing still decides.
+      - name: Validate Thunderstore categories
+        run: |
+          python3 - <<'PY'
+          import json, re, pathlib, urllib.request
+
+          text = pathlib.Path("thunderstore.toml").read_text()
+          block = re.search(r'(?ms)^\[publish\.categories\]\s*$(.*?)(?=^\[|\Z)', text)
+          cats = []
+          if block:
+              for line in block.group(1).splitlines():
+                  m = re.match(r'\s*(\w+)\s*=\s*\[(.*)\]', line)
+                  if m:
+                      cats += [c.strip().strip('"').strip("'") for c in m.group(2).split(",") if c.strip()]
+
+          if not cats:
+              print("No categories declared; nothing to check.")
+              raise SystemExit(0)
+
+          url = "https://thunderstore.io/api/experimental/community/rounds/category/"
+          try:
+              req = urllib.request.Request(url, headers={
+                  "User-Agent": "LeanAndMeanCards-CI/1.0", "Accept": "application/json"})
+              with urllib.request.urlopen(req, timeout=30) as response:
+                  valid = {c["slug"] for c in json.load(response)["results"]}
+          except Exception as ex:
+              print(f"WARNING: could not fetch the category list ({ex}); skipping check.")
+              raise SystemExit(0)
+
+          bad = [c for c in cats if c not in valid]
+          if bad:
+              print(f"Invalid category slug(s) for community 'rounds': {', '.join(bad)}")
+              print(f"Valid slugs: {', '.join(sorted(valid))}")
+              print("Fix [publish.categories] in thunderstore.toml.")
+              raise SystemExit(1)
+          print(f"Categories OK: {', '.join(cats)}")
+          PY
+
       - name: Install tcli
         run: dotnet tool install -g tcli
 
