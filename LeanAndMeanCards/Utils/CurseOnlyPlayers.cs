@@ -40,10 +40,16 @@ namespace LeanAndMeanCards.Utils
         private static int _cachedForPlayer = -1;
         private static float _cachedAt;
 
+        private static bool _announced;
+        private static int _cachedLocalId = -1;
+        private static int _localIdCachedAt = -1;
+
         internal static void ResetCache()
         {
             _cachedCount = -1;
             _cachedForPlayer = -1;
+            _cachedLocalId = -1;
+            _localIdCachedAt = -1;
         }
 
         internal static void InvalidateTargets()
@@ -71,12 +77,37 @@ namespace LeanAndMeanCards.Utils
                 if (t == id) { listed = true; break; }
             }
 
-            if (!listed) return false;
+            if (!listed)
+            {
+                if (!_announced)
+                {
+                    _announced = true;
+                    Plugin.Instance?.Log(
+                        $"Curse-only is armed for {_targets.Length} account(s); this machine " +
+                        $"({id}) is not one of them, so offers are unchanged.");
+                }
+
+                return false;
+            }
+
+            if (!_announced)
+            {
+                _announced = true;
+                Plugin.Instance?.Log($"Curse-only is ACTIVE for this machine ({id}).");
+            }
 
             // Compare by playerID rather than by reference: Unity's overloaded == treats a
             // destroyed object as null, and a mid-round respawn can hand out a fresh Player.
-            var local = LocalPlayerUtil.LocalPlayer();
-            return local != null && local.playerID == player.playerID;
+            // Cached per pick — PlayerIsAllowedCard runs once per card per offer slot, and
+            // LocalPlayer() scans every player calling GetComponent each time.
+            if (_localIdCachedAt != Time.frameCount)
+            {
+                var local = LocalPlayerUtil.LocalPlayer();
+                _cachedLocalId = local != null ? local.playerID : -1;
+                _localIdCachedAt = Time.frameCount;
+            }
+
+            return _cachedLocalId >= 0 && _cachedLocalId == player.playerID;
         }
 
         /// <summary>
@@ -110,6 +141,10 @@ namespace LeanAndMeanCards.Utils
                 Plugin.Instance?.LogWarn(
                     "Curse-only is configured for this account but no curse is currently " +
                     "drawable; offering normal cards instead so the pick cannot soft-lock.");
+            }
+            else
+            {
+                Plugin.Instance?.Log($"Curse-only: restricting this offer to {count} drawable curse(s).");
             }
 
             return count > 0;

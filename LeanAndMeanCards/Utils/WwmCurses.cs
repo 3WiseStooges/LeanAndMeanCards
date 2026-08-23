@@ -12,6 +12,10 @@ namespace LeanAndMeanCards.Utils
     internal static class WwmCurses
     {
         private static bool _probed;
+        private static bool _typeMissing;
+        private static Type _type;
+        private static PropertyInfo _instanceProperty;
+        private static FieldInfo _instanceField;
         private static object _instance;
         private static MethodInfo _isCurse;
         private static MethodInfo _getRaw;
@@ -90,27 +94,43 @@ namespace LeanAndMeanCards.Utils
 
         private static void Probe()
         {
-            // CurseManager.instance is created during startup, so keep retrying until it exists.
-            if (_probed && _instance != null) return;
+            if (_probed) return;
 
             try
             {
-                var type = AccessTools.TypeByName("WillsWackyManagers.Utils.CurseManager");
-                if (type == null)
+                // Resolve the type exactly once and cache it even when CurseManager.instance
+                // is not up yet. AccessTools.TypeByName walks every loaded assembly calling
+                // GetTypes(), which is expensive and noisy — the earlier version re-ran it on
+                // every call while instance was null, and IsCurse is called once per card per
+                // offer slot, so a whole card pool meant thousands of full assembly scans.
+                if (_type == null && !_typeMissing)
                 {
-                    _probed = true;
-                    return;
+                    _type = AccessTools.TypeByName("WillsWackyManagers.Utils.CurseManager");
+                    if (_type == null)
+                    {
+                        _typeMissing = true;
+                        _probed = true;
+                        return;
+                    }
+
+                    _instanceProperty = AccessTools.Property(_type, "instance");
+                    _instanceField = _instanceProperty == null ? AccessTools.Field(_type, "instance") : null;
                 }
 
-                _instance = AccessTools.Property(type, "instance")?.GetValue(null)
-                            ?? AccessTools.Field(type, "instance")?.GetValue(null);
+                if (_type == null) return;
+
+                // Only the instance read is retried, and that is a cheap property get.
+                _instance = _instanceProperty != null
+                    ? _instanceProperty.GetValue(null)
+                    : _instanceField?.GetValue(null);
                 if (_instance == null) return;
 
-                _isCurse = AccessTools.Method(type, "IsCurse", new[] { typeof(CardInfo) });
-                _getRaw = AccessTools.Method(type, "GetRaw", new[] { typeof(bool) });
+                _isCurse = AccessTools.Method(_type, "IsCurse", new[] { typeof(CardInfo) });
+                _getRaw = AccessTools.Method(_type, "GetRaw", new[] { typeof(bool) });
                 _playerIsAllowedCurse = AccessTools.Method(
-                    type, "PlayerIsAllowedCurse", new[] { typeof(Player), typeof(CardInfo) });
+                    _type, "PlayerIsAllowedCurse", new[] { typeof(Player), typeof(CardInfo) });
                 _probed = true;
+                Plugin.Instance?.Log("WillsWackyManagers curse API bound.");
             }
             catch (Exception ex)
             {

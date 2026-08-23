@@ -61,6 +61,13 @@ namespace LeanAndMeanCards.Utils
             return Mathf.Max(0, CountOwned(player) - used);
         }
 
+        /// <summary>
+        /// True when this specific offered card is locked.
+        ///
+        /// A null card is NOT a locked card. It returns true only because callers use this
+        /// to mean "unsafe to act on", and every caller must null-check first. Never use it
+        /// to gate CardChoice.Pick, whose null argument means "build the offer".
+        /// </summary>
         internal static bool IsBlocked(GameObject card)
         {
             if (card == null) return true;
