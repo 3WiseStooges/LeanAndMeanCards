@@ -1,0 +1,139 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+    <AssemblyName>LeanAndMeanCards</AssemblyName>
+    <RootNamespace>LeanAndMeanCards</RootNamespace>
+    <!-- UnboundLib resolves RPC targets via Type.AssemblyQualifiedName, which embeds the
+         assembly version. Keep AssemblyVersion pinned so a client on 1.0.3 can still receive
+         events from a client on 1.0.4; bump FileVersion/Version for releases instead. -->
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <Version>1.0.0</Version>
+    <EnableDefaultCompileItems>true</EnableDefaultCompileItems>
+    <NoWarn>$(NoWarn);CS0649</NoWarn>
+  </PropertyGroup>
+
+  <!-- Paths. Override on the command line, e.g.
+       dotnet build -c Release -p:RoundsFolder="D:\Steam\steamapps\common\ROUNDS"
+       Defaults cover the usual Windows install + r2modman profile layout. -->
+  <PropertyGroup>
+    <RoundsFolder Condition="'$(RoundsFolder)' == '' AND Exists('$(ProgramFiles)\Steam\steamapps\common\ROUNDS')">$(ProgramFiles)\Steam\steamapps\common\ROUNDS</RoundsFolder>
+    <RoundsFolder Condition="'$(RoundsFolder)' == '' AND Exists('X:\SteamLibrary\steamapps\common\ROUNDS')">X:\SteamLibrary\steamapps\common\ROUNDS</RoundsFolder>
+    <RoundsFolder Condition="'$(RoundsFolder)' == ''">C:\Program Files (x86)\Steam\steamapps\common\ROUNDS</RoundsFolder>
+
+    <R2Root Condition="'$(R2Root)' == ''">$(AppData)\r2modmanPlus-local\ROUNDS\profiles</R2Root>
+    <R2ProfileName Condition="'$(R2ProfileName)' == ''">Default</R2ProfileName>
+    <R2Profile Condition="'$(R2Profile)' == ''">$(R2Root)\$(R2ProfileName)</R2Profile>
+
+    <Managed>$(RoundsFolder)\ROUNDS_Data\Managed</Managed>
+    <BepInExCore>$(R2Profile)\BepInEx\core</BepInExCore>
+    <Plugins>$(R2Profile)\BepInEx\plugins</Plugins>
+  </PropertyGroup>
+
+  <Target Name="VerifyRefs" BeforeTargets="BeforeBuild">
+    <Error Condition="!Exists('$(Managed)\Assembly-CSharp.dll')"
+           Text="ROUNDS managed assemblies not found at '$(Managed)'. Pass -p:RoundsFolder=&quot;...&quot;." />
+    <Error Condition="!Exists('$(Plugins)\willis81808-UnboundLib\UnboundLib.dll')"
+           Text="UnboundLib not found under '$(Plugins)'. Pass -p:R2Profile=&quot;...&quot; (or -p:R2ProfileName=&quot;...&quot;)." />
+  </Target>
+
+  <ItemGroup>
+    <Reference Include="BepInEx">
+      <HintPath>$(BepInExCore)\BepInEx.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="0Harmony">
+      <HintPath>$(BepInExCore)\0Harmony.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnboundLib">
+      <HintPath>$(Plugins)\willis81808-UnboundLib\UnboundLib.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="ModdingUtils">
+      <HintPath>$(Plugins)\Pykess-ModdingUtils\ModdingUtils.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="CardChoiceSpawnUniqueCardPatch">
+      <HintPath>$(Plugins)\Pykess-CardChoiceSpawnUniqueCardPatch\CardChoiceSpawnUniqueCardPatch.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="RarityLib">
+      <HintPath>$(Plugins)\Root-RarityLib\RarityLib.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.Physics2DModule">
+      <HintPath>$(Managed)\UnityEngine.Physics2DModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.ImageConversionModule">
+      <HintPath>$(Managed)\UnityEngine.ImageConversionModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.ParticleSystemModule">
+      <HintPath>$(Managed)\UnityEngine.ParticleSystemModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="SonigonAudioEngine.Runtime">
+      <HintPath>$(Managed)\SonigonAudioEngine.Runtime.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Assembly-CSharp">
+      <HintPath>$(Managed)\Assembly-CSharp.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine">
+      <HintPath>$(Managed)\UnityEngine.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>$(Managed)\UnityEngine.CoreModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UI">
+      <HintPath>$(Managed)\UnityEngine.UI.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UIModule">
+      <HintPath>$(Managed)\UnityEngine.UIModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.IMGUIModule">
+      <HintPath>$(Managed)\UnityEngine.IMGUIModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.TextRenderingModule">
+      <HintPath>$(Managed)\UnityEngine.TextRenderingModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Unity.TextMeshPro">
+      <HintPath>$(Managed)\Unity.TextMeshPro.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="PhotonUnityNetworking">
+      <HintPath>$(Managed)\PhotonUnityNetworking.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="PhotonRealtime">
+      <HintPath>$(Managed)\PhotonRealtime.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Photon3Unity3D">
+      <HintPath>$(Managed)\Photon3Unity3D.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <Target Name="CopyOutputs" AfterTargets="Build">
+    <MakeDir Directories="$(MSBuildProjectDirectory)\..\package" />
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(MSBuildProjectDirectory)\..\package" />
+    <MakeDir Directories="$(MSBuildProjectDirectory)\..\package\Art" />
+    <Copy SourceFiles="@(ArtFiles)" DestinationFolder="$(MSBuildProjectDirectory)\..\package\Art" SkipUnchangedFiles="true" />
+  </Target>
+
+  <ItemGroup>
+    <ArtFiles Include="$(MSBuildProjectDirectory)\Art\*.png" />
+  </ItemGroup>
+</Project>

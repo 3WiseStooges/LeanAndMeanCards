@@ -1,0 +1,162 @@
+using System;
+using System.Reflection;
+using BepInEx;
+using BepInEx.Configuration;
+using HarmonyLib;
+using LeanAndMeanCards.Cards;
+using LeanAndMeanCards.Utils;
+using UnboundLib;
+using UnboundLib.GameModes;
+using UnityEngine;
+
+namespace LeanAndMeanCards
+{
+    [BepInDependency("com.willis.rounds.unbound", BepInDependency.DependencyFlags.HardDependency)]
+    [BepInDependency("pykess.rounds.plugins.moddingutils", BepInDependency.DependencyFlags.HardDependency)]
+    [BepInDependency("pykess.rounds.plugins.cardchoicespawnuniquecardpatch", BepInDependency.DependencyFlags.HardDependency)]
+    [BepInDependency("com.rsmind.rounds.fancycardbar", BepInDependency.DependencyFlags.SoftDependency)]
+    [BepInDependency("root.rarity.lib", BepInDependency.DependencyFlags.SoftDependency)]
+    [BepInDependency("com.bukey.rounds.mulliganmadness", BepInDependency.DependencyFlags.SoftDependency)]
+    [BepInPlugin(ModId, ModName, Version)]
+    [BepInProcess("Rounds.exe")]
+    public class Plugin : BaseUnityPlugin
+    {
+        public const string ModId = "com.ljindustries.rounds.leanandmeancards";
+        public const string ModName = "Lean and Mean Cards";
+        public const string Version = "1.0.0";
+        public const string ModInitials = "LMC";
+        public const string CardsMenuName = "LeanAndMeanCards";
+
+        public static Plugin Instance { get; private set; }
+
+        internal static Configs Configs;
+
+        private void Awake()
+        {
+            Instance = this;
+            Configs = new Configs(Config);
+
+            // Patch per type so one unloadable type cannot abort every patch in this assembly.
+            // (Unity Mono chokes on IsReadOnlyAttribute, which readonly structs emit — a bare
+            // PatchAll then leaves the whole mod unpatched instead of skipping one type.)
+            try
+            {
+                var harmony = new Harmony(ModId);
+                Type[] types;
+                try
+                {
+                    types = typeof(Plugin).Assembly.GetTypes();
+                }
+                catch (ReflectionTypeLoadException ex)
+                {
+                    types = ex.Types;
+                    Logger.LogWarning($"GetTypes partial load: {ex.LoaderExceptions?.Length ?? 0} loader error(s)");
+                }
+
+                foreach (var type in types)
+                {
+                    if (type == null) continue;
+                    try
+                    {
+                        harmony.CreateClassProcessor(type).Patch();
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.LogWarning($"Harmony skip {type.FullName}: {ex.GetType().Name}: {ex.Message}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError($"Harmony patching failed: {ex}");
+            }
+        }
+
+        private void Start()
+        {
+            CardRegistration.RegisterAll();
+            CardArtFactory.BindLoadedCardInfos();
+            BozoShoesRuntime.RegisterHooks();
+            DynamiteBlast.RegisterHooks();
+            CardStatus.Register();
+
+            Instance.ExecuteAfterSeconds(0.8f, DynamiteBlast.Warmup);
+            Instance.ExecuteAfterSeconds(2.5f, DynamiteBlast.Warmup);
+
+            gameObject.GetOrAddComponent<DraftSniperTicker>();
+
+            GameModeManager.AddHook(GameModeHooks.HookGameStart, OnGameStart);
+            GameModeManager.AddHook(GameModeHooks.HookPlayerPickStart, OnPlayerPickStart);
+            GameModeManager.AddHook(GameModeHooks.HookPlayerPickEnd, OnPlayerPickEnd);
+            GameModeManager.AddHook(GameModeHooks.HookPickEnd, OnPickEnd);
+        }
+
+        private static System.Collections.IEnumerator OnGameStart(IGameModeHandler gm)
+        {
+            StealLedger.ResetForNewGame();
+            SandbagManager.ResetForNewGame();
+            DraftSniperManager.ResetForNewGame();
+            BozoShoesRuntime.Clear();
+            SafetyNetEscape.Reset();
+            yield break;
+        }
+
+        private static System.Collections.IEnumerator OnPlayerPickStart(IGameModeHandler gm)
+        {
+            DraftSniperManager.ResetForPick();
+            StealLedger.TryOpenDeferredThiefPrompt();
+            yield break;
+        }
+
+        private static System.Collections.IEnumerator OnPlayerPickEnd(IGameModeHandler gm)
+        {
+            DraftSniperManager.ResetForPick();
+            yield break;
+        }
+
+        private static System.Collections.IEnumerator OnPickEnd(IGameModeHandler gm)
+        {
+            DraftSniperManager.ResetForPick();
+            PickPhase.ClearActingPicker();
+            yield break;
+        }
+
+        internal void Log(string message) => Logger.LogInfo($"[{ModName}] {message}");
+
+        internal void LogWarn(string message) => Logger.LogWarning($"[{ModName}] {message}");
+    }
+
+    internal class Configs
+    {
+        public ConfigEntry<bool> SandbagOncePerGame { get; }
+        public ConfigEntry<bool> SoftenCardGlow { get; }
+
+        public Configs(ConfigFile config)
+        {
+            // The host's value decides: the once-per-game gate is enforced inside the
+            // master-only branch of SandbagManager. A client's value only affects whether
+            // its own "use Sandbag" prompt appears.
+            SandbagOncePerGame = config.Bind(
+                "Cards", "SandbagOncePerGame", true,
+                "Sandbag Simulator can only be used once per game. Set by the host.");
+
+            SoftenCardGlow = config.Bind(
+                "Visuals", "SoftenCardGlow", true,
+                "Tone down the particle glow on this pack's pick cards.");
+        }
+    }
+
+    /// <summary>
+    /// Keeps PickPhase's acting-picker id current. Postfix only — never alters the pick.
+    /// </summary>
+    [HarmonyPatch(typeof(CardChoice), nameof(CardChoice.StartPick))]
+    internal static class StartPickTrackerPatch
+    {
+        private static void Postfix(int pickerIDToSet) => PickPhase.NoteActingPicker(pickerIDToSet);
+    }
+
+    internal sealed class DraftSniperTicker : MonoBehaviour
+    {
+        private void Update() => DraftSniperManager.Tick();
+    }
+}

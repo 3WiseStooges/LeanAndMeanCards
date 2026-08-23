@@ -1,0 +1,7 @@
+bin/
+obj/
+build/
+*.user
+*.suo
+.vs/
+.idea/
