@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.1.0
+
+- **Curse-only accounts.** Steam IDs listed under `[Curse Only] SteamIds` are only ever
+  offered curses. Defaults to one account; comma-separate for more, or clear it to disable.
+
+  The check runs on the listed player's own machine, because a Steam ID never crosses the
+  wire — ROUNDS puts only the Steam persona name on Photon. That works because the picker's
+  own client builds their hand. It needs WillsWackyManagers for the curse pool, and steps
+  aside when no curse is drawable so the offer cannot degrade into a hand of Nulls.
+
 ## 1.0.3
 
 - Thunderstore listing matches the split, with links to

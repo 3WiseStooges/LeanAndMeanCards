@@ -16,6 +16,7 @@ namespace LeanAndMeanCards
     [BepInDependency("pykess.rounds.plugins.cardchoicespawnuniquecardpatch", BepInDependency.DependencyFlags.HardDependency)]
     [BepInDependency("com.rsmind.rounds.fancycardbar", BepInDependency.DependencyFlags.SoftDependency)]
     [BepInDependency("root.rarity.lib", BepInDependency.DependencyFlags.SoftDependency)]
+    [BepInDependency("com.willuwontu.rounds.managers", BepInDependency.DependencyFlags.SoftDependency)]
     [BepInDependency("com.bukey.rounds.mulliganmadness", BepInDependency.DependencyFlags.SoftDependency)]
     [BepInPlugin(ModId, ModName, Version)]
     [BepInProcess("Rounds.exe")]
@@ -23,7 +24,7 @@ namespace LeanAndMeanCards
     {
         public const string ModId = "com.ljindustries.rounds.leanandmeancards";
         public const string ModName = "Lean and Mean Cards";
-        public const string Version = "1.0.3";
+        public const string Version = "1.1.0";
         public const string ModInitials = "LMC";
         public const string CardsMenuName = "LeanAndMeanCards";
 
@@ -95,6 +96,8 @@ namespace LeanAndMeanCards
         {
             StealLedger.ResetForNewGame();
             SandbagManager.ResetForNewGame();
+            CurseOnlyPlayers.InvalidateTargets();
+            CurseOnlyPlayers.ResetCache();
             DraftSniperManager.ResetForNewGame();
             BozoShoesRuntime.Clear();
             SafetyNetEscape.Reset();
@@ -104,6 +107,7 @@ namespace LeanAndMeanCards
         private static System.Collections.IEnumerator OnPlayerPickStart(IGameModeHandler gm)
         {
             DraftSniperManager.ResetForPick();
+            CurseOnlyPlayers.ResetCache();
             StealLedger.TryOpenDeferredThiefPrompt();
             yield break;
         }
@@ -130,6 +134,7 @@ namespace LeanAndMeanCards
     {
         public ConfigEntry<bool> SandbagOncePerGame { get; }
         public ConfigEntry<bool> SoftenCardGlow { get; }
+        public ConfigEntry<string> CurseOnlySteamIds { get; }
 
         public Configs(ConfigFile config)
         {
@@ -143,6 +148,13 @@ namespace LeanAndMeanCards
             SoftenCardGlow = config.Bind(
                 "Visuals", "SoftenCardGlow", true,
                 "Tone down the particle glow on this pack's pick cards.");
+
+            // Checked against this machine's own Steam account only — a Steam ID never
+            // travels over Photon, so this cannot be applied to anyone else remotely.
+            // Requires WillsWackyManagers, and is ignored whenever no curse is drawable.
+            CurseOnlySteamIds = config.Bind(
+                "Curse Only", "SteamIds", "76561198284769933",
+                "Comma-separated Steam64 IDs that are only ever offered curses. Empty disables it.");
         }
     }
 
