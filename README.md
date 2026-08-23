@@ -74,3 +74,15 @@ dotnet build LeanAndMeanCards/LeanAndMeanCards.csproj -c Release -p:RoundsFolder
 ```
 
 The DLL and `Art/` land in `package/`. Install and test through r2modman.
+
+## Icon
+
+`icon.png` is generated, not hand-drawn, so it stays reproducible and on-style with the
+sibling mods:
+
+```bash
+python tools/make-icon.py
+```
+
+Requires Pillow. It renders at 4x and downsamples, and writes a 256x256 opaque PNG —
+Thunderstore rejects anything else. `lean_and_mean_cards()` is the function for this mod.
