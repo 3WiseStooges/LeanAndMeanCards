@@ -1,8 +1,8 @@
 {
   "name": "LeanAndMeanCards",
-  "version_number": "1.0.0",
+  "version_number": "1.0.3",
   "website_url": "https://github.com/3WiseStooges/LeanAndMeanCards",
-  "description": "A 14-card pack for ROUNDS: knockback, stuns, delayed blasts, and a few cards that mess with someone else's pick.",
+  "description": "Fourteen cards: knockback, stuns, delayed blasts, and a few that mess with someone else's pick.",
   "dependencies": [
     "BepInEx-BepInExPack_ROUNDS-5.4.1900",
     "willis81808-UnboundLib-3.2.14",

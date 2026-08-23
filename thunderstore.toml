@@ -7,8 +7,8 @@ repository = "https://thunderstore.io"
 [package]
 namespace = "LJIndustries"
 name = "LeanAndMeanCards"
-versionNumber = "1.0.0"
-description = "A 14-card pack for ROUNDS: knockback, stuns, delayed blasts, and a few cards that mess with someone else's pick."
+versionNumber = "1.0.3"
+description = "Fourteen cards: knockback, stuns, delayed blasts, and a few that mess with someone else's pick."
 websiteUrl = "https://github.com/3WiseStooges/LeanAndMeanCards"
 containsNsfwContent = false
 

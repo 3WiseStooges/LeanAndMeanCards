@@ -1,9 +1,20 @@
 # Lean and Mean Cards
 
-Fourteen cards for ROUNDS. Mostly knockback, stuns and delayed blasts — plus a few that let you
-reach across the table and mess with somebody else's pick.
+Fourteen cards for ROUNDS. Mostly knockback, stuns and delayed blasts, plus a few that let you
+mess with somebody else's pick.
 
-Standalone. No card here depends on another mod being installed.
+Everyone in the lobby needs this mod.
+
+## Split from Mulligan Madness
+
+These cards used to ship in
+[Mulligan Madness](https://thunderstore.io/c/rounds/p/LJIndustries/MulliganMadness/).
+They are their own mod now. Install the others alongside this one if you want the old setup back:
+
+- [**Mulligan Madness**](https://thunderstore.io/c/rounds/p/LJIndustries/MulliganMadness/):
+  Take All and curses
+- [**Pro MLG Stats**](https://thunderstore.io/c/rounds/p/LJIndustries/ProMLGStats/):
+  live stats HUD, Tab overlay, and card-hover previews
 
 ## Common
 
@@ -27,8 +38,8 @@ Standalone. No card here depends on another mod being installed.
 | | |
 | :---: | --- |
 | **Draft Sniper** | During someone else's pick, click a card to lock it so they can't take that one. Extra copies stack. |
-| **Safety Net** | Map edges no longer deal damage. If you soft-lock outside the map, you die after a few seconds. |
-| **TASER TASER TASER** | Hits stun for +0.5s, 15% faster fire, −1 ammo |
+| **Safety Net** | Map edges no longer deal damage. If you get stuck outside the map, you die after a few seconds. |
+| **TASER TASER TASER** | Hits stun for +0.5s, 15% faster fire, -1 ammo |
 | **Yeet Cannon** | +100% bullet knockback, +15% damage, and your shots strongly kick you away from your gun |
 
 ## Legendary
@@ -46,43 +57,10 @@ Standalone. No card here depends on another mod being installed.
 
 Toggle individual cards under **Toggle Cards → LeanAndMeanCards**.
 
-## Optional integrations
+## With other mods
 
-All detected at runtime — none are required, and none are referenced at compile time.
+None of these are required.
 
-- **RarityLib** — Legendary and Unique rarities. Without it those cards fall back to Rare.
-- **FancyCardBar** — custom mini icons in the card bar.
-- **TabInfo** — per-player card statuses in the Tab panel.
-- **WillsWackyManagers** — Thief will not steal curses.
-- **MulliganMadness** — Draft Sniper and Sandbag hold off while a Take All is being collected.
-
-## Multiplayer
-
-Everyone in the lobby needs this mod. Combat effects are applied by the host and broadcast once,
-so all clients agree on stun durations and knockback.
-
-## Build
-
-```bash
-dotnet build LeanAndMeanCards/LeanAndMeanCards.csproj -c Release
-```
-
-Override the paths if your install differs:
-
-```bash
-dotnet build LeanAndMeanCards/LeanAndMeanCards.csproj -c Release -p:RoundsFolder="D:\Steam\steamapps\common\ROUNDS" -p:R2ProfileName="MyProfile"
-```
-
-The DLL and `Art/` land in `package/`. Install and test through r2modman.
-
-## Icon
-
-`icon.png` is generated, not hand-drawn, so it stays reproducible and on-style with the
-sibling mods:
-
-```bash
-python tools/make-icon.py
-```
-
-Requires Pillow. It renders at 4x and downsamples, and writes a 256x256 opaque PNG —
-Thunderstore rejects anything else. `lean_and_mean_cards()` is the function for this mod.
+- Without **RarityLib**, Legendary and Unique cards show as Rare.
+- If **Wills Wacky Managers** is installed, Thief will not steal curses.
+- If **Mulligan Madness** is installed, Draft Sniper and Sandbag wait while Take All is happening.
