@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.1.4
+
+- **Fix missing card-bar mini icons.** Regression from 1.1.0's stamping coalescer: when a
+  second card was added while a re-stamp was still in flight, the request was dropped
+  entirely rather than queued. FancyCardBar and the vanilla bar rebuild their buttons a
+  few frames after a card is added, so that card's icon was stamped once, immediately
+  wiped by the rebuild, and never restored. Overlapping requests now queue one more pass
+  instead of being discarded.
+
 ## 1.1.3
 
 - **Dynamite's blast marker now matches the damage it does.** It was an opaque filled

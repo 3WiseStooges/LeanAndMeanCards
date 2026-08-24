@@ -20,9 +20,10 @@ namespace LeanAndMeanCards.Patches
         }
 
         // Five different hooks can report the same card addition (Cards.SilentAddToCardBar ->
-        // CardBarUtils.SilentAddToCardBar -> CardBar.AddCard, plus FancyCardBar's own pass).
-        // Without this guard one added card triggered up to fifteen full-bar sweeps.
+        // CardBarUtils.SilentAddToCardBar -> CardBar.AddCard, plus FancyCardBar's own pass),
+        // so the delayed passes are coalesced per bar.
         private static readonly HashSet<CardBar> PendingBars = new HashSet<CardBar>();
+        private static readonly HashSet<CardBar> DirtyBars = new HashSet<CardBar>();
 
         internal static void StampMm(CardBar bar)
         {
@@ -30,15 +31,36 @@ namespace LeanAndMeanCards.Patches
             CardBarMiniIcons.ApplyAllMmOnBar(bar);
 
             if (Unbound.Instance == null) return;
-            if (!PendingBars.Add(bar)) return;
 
-            // FancyCardBar and the vanilla bar both rebuild buttons a few frames later,
-            // so re-stamp twice — but only once per bar per batch.
-            Unbound.Instance.ExecuteAfterFrames(2, () => CardBarMiniIcons.ApplyAllMmOnBar(bar));
+            // A pass is already in flight. Do NOT just drop this request: FancyCardBar and
+            // the vanilla bar rebuild their buttons a few frames after a card is added, so a
+            // card whose only stamp was the immediate one above gets its icon wiped and never
+            // restored. That is what left mini icons missing when two cards landed close
+            // together. Record it and run one more pass once the current one finishes.
+            if (!PendingBars.Add(bar))
+            {
+                DirtyBars.Add(bar);
+                return;
+            }
+
+            ScheduleRestamp(bar);
+        }
+
+        private static void ScheduleRestamp(CardBar bar)
+        {
+            Unbound.Instance.ExecuteAfterFrames(2, () =>
+            {
+                if (bar != null) CardBarMiniIcons.ApplyAllMmOnBar(bar);
+            });
+
             Unbound.Instance.ExecuteAfterFrames(8, () =>
             {
-                CardBarMiniIcons.ApplyAllMmOnBar(bar);
+                if (bar != null) CardBarMiniIcons.ApplyAllMmOnBar(bar);
                 PendingBars.Remove(bar);
+
+                if (!DirtyBars.Remove(bar) || bar == null || Unbound.Instance == null) return;
+                PendingBars.Add(bar);
+                ScheduleRestamp(bar);
             });
         }
     }
