@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.5
+
+- Refresh the Thunderstore listing.
+
 ## 1.1.4
 
 - **Fix missing card-bar mini icons.** Regression from 1.1.0's stamping coalescer: when a
