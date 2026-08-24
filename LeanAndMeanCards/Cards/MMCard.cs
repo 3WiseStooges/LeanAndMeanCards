@@ -1,4 +1,5 @@
 using CardChoiceSpawnUniqueCardPatch.CustomCategories;
+using LeanAndMeanCards.Utils;
 using UnboundLib.Cards;
 using UnityEngine;
 
@@ -14,6 +15,9 @@ namespace LeanAndMeanCards.Cards
         public override void SetupCard(CardInfo cardInfo, Gun gun, ApplyCardStats cardStats, CharacterStatModifiers statModifiers)
         {
             cardInfo.allowMultiple = AllowMultiple;
+            // Local / Photon clones of CardInfo often drop cardArt tags. Register
+            // the name here so the card bar can still find the mini PNG.
+            CardArtFactory.TryAssignSprite(cardInfo);
         }
 
         public override void OnAddCard(Player player, Gun gun, GunAmmo gunAmmo, CharacterData data, HealthHandler health,

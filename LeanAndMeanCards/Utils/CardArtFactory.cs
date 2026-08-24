@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
@@ -13,9 +14,29 @@ namespace LeanAndMeanCards.Utils
 
     internal static class CardArtFactory
     {
-        private static readonly string ArtFolder = Path.Combine(
-            Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? "",
-            "Art");
+        private static readonly HashSet<string> RegisteredCardNames =
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        private static readonly Dictionary<string, string> CardNameToArt =
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        private static string _artFolder;
+        private static bool _artFolderResolved;
+
+        private static string ArtFolder
+        {
+            get
+            {
+                if (_artFolderResolved) return _artFolder;
+                _artFolderResolved = true;
+                var dllDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? "";
+                var besideDll = Path.Combine(dllDir, "Art");
+                if (Directory.Exists(besideDll)) { _artFolder = besideDll; return _artFolder; }
+                var parent = Path.Combine(Directory.GetParent(dllDir)?.FullName ?? dllDir, "Art");
+                if (Directory.Exists(parent)) { _artFolder = parent; return _artFolder; }
+                _artFolder = besideDll;
+                return _artFolder;
+            }
+        }
 
         private static readonly Dictionary<string, Sprite> FullSprites = new Dictionary<string, Sprite>();
         private static readonly Dictionary<string, Sprite> MiniSprites = new Dictionary<string, Sprite>();
@@ -33,7 +54,7 @@ namespace LeanAndMeanCards.Utils
             // SpriteRenderer never draws there — use Unity UI Image (same pattern as MADGEIOS).
             // No Canvas on the template → invisible on the main menu until Instantiated onto a card.
             var root = new GameObject("MM_CardArt_" + artName, typeof(RectTransform));
-            Object.DontDestroyOnLoad(root);
+            UnityEngine.Object.DontDestroyOnLoad(root);
 
             var tag = root.AddComponent<MmCardArtTag>();
             tag.ArtName = artName;
@@ -100,17 +121,64 @@ namespace LeanAndMeanCards.Utils
                     if (tag != null) artName = tag.ArtName;
                 }
 
+                if (string.IsNullOrEmpty(artName) && !string.IsNullOrEmpty(info.cardName))
+                    CardNameToArt.TryGetValue(info.cardName, out artName);
+
                 if (string.IsNullOrEmpty(artName)) return;
+                RegisterCard(info, artName);
                 var mini = GetMiniSprite(artName);
                 if (mini != null) info.sprite = mini;
                 // Soft-dep FancyCardBar: custom bar icon prefab beats muddy auto-gen.
                 CardBarMiniIcons.AttachFancyIcon(info);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 // Called from CardInfo.Awake — never throw into Photon spawn.
                 Plugin.Instance?.LogWarn($"TryAssignSprite skipped: {ex.Message}");
             }
+        }
+
+        internal static void RegisterCard(CardInfo info, string artName)
+        {
+            if (info == null || string.IsNullOrEmpty(artName)) return;
+            if (!string.IsNullOrEmpty(info.cardName))
+            {
+                RegisteredCardNames.Add(info.cardName);
+                CardNameToArt[info.cardName] = artName;
+            }
+
+            // Stamp the CardInfo itself so Photon / local clones still identify as ours
+            // after cardArt loses the runtime tag.
+            var tag = info.GetComponent<MmCardArtTag>();
+            if (tag == null) tag = info.gameObject.AddComponent<MmCardArtTag>();
+            if (string.IsNullOrEmpty(tag.ArtName)) tag.ArtName = artName;
+        }
+
+        internal static bool IsRegisteredCardName(string cardName)
+        {
+            return !string.IsNullOrEmpty(cardName) && RegisteredCardNames.Contains(cardName);
+        }
+
+        internal static string ArtNameFor(CardInfo info)
+        {
+            if (info == null) return null;
+            var tag = info.GetComponent<MmCardArtTag>();
+            if (tag != null && !string.IsNullOrEmpty(tag.ArtName)) return tag.ArtName;
+            if (info.cardArt != null)
+            {
+                var artTag = info.cardArt.GetComponent<MmCardArtTag>();
+                if (artTag != null && !string.IsNullOrEmpty(artTag.ArtName)) return artTag.ArtName;
+            }
+
+            if (info.sourceCard != null && info.sourceCard != info)
+            {
+                var fromSource = ArtNameFor(info.sourceCard);
+                if (!string.IsNullOrEmpty(fromSource)) return fromSource;
+            }
+
+            if (!string.IsNullOrEmpty(info.cardName) && CardNameToArt.TryGetValue(info.cardName, out var mapped))
+                return mapped;
+            return null;
         }
 
         internal static void BindLoadedCardInfos()
@@ -158,13 +226,13 @@ namespace LeanAndMeanCards.Utils
             var texture = new Texture2D(2, 2, TextureFormat.RGBA32, false);
             if (!texture.LoadImage(bytes))
             {
-                Object.Destroy(texture);
+                UnityEngine.Object.Destroy(texture);
                 return null;
             }
 
             texture.filterMode = FilterMode.Bilinear;
             texture.wrapMode = TextureWrapMode.Clamp;
-            Object.DontDestroyOnLoad(texture);
+            UnityEngine.Object.DontDestroyOnLoad(texture);
             return texture;
         }
     }

@@ -8,8 +8,9 @@
 - Bozo Shoes sit lower on the feet, and no longer toast when someone is wearing them.
 - Dynamite knocks harder and no longer fires the hit chromatic / screen-shake path.
   Blast knockback also skips bullets so host bounce trajectories are not flattened.
-- Pick-card and mini-icon particle glow is killed for this pack's art (sticker outlines
-  stay). Hold-to-shoot still works when Pisser is paired with Spray.
+- Pick-card bloom is killed for this pack's sticker art (selected cards no longer
+  wash the PNG white). Mini-icon PNGs also stamp in local games when CardInfo clones
+  drop art tags. Hold-to-shoot still works when Pisser is paired with Spray.
 
 ## 1.1.5
 

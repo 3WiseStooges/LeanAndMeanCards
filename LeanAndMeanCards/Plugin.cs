@@ -111,6 +111,9 @@ namespace LeanAndMeanCards
             DraftSniperManager.ResetForPick();
             CurseOnlyPlayers.ResetCache();
             StealLedger.TryOpenDeferredThiefPrompt();
+            CardBarMiniIcons.RestampAll();
+            Instance.ExecuteAfterSeconds(0.25f, CardBarMiniIcons.RestampAll);
+            Instance.ExecuteAfterSeconds(1f, CardBarMiniIcons.RestampAll);
             yield break;
         }
 

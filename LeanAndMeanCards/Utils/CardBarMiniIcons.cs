@@ -19,8 +19,24 @@ namespace LeanAndMeanCards.Utils
 
         internal static bool IsMmCard(CardInfo card)
         {
-            if (card?.cardArt == null) return false;
-            return card.cardArt.GetComponent<MmCardArtTag>() != null;
+            if (card == null) return false;
+            if (HasArtTag(card)) return true;
+            if (card.sourceCard != null && card.sourceCard != card && HasArtTag(card.sourceCard))
+                return true;
+            return CardArtFactory.IsRegisteredCardName(card.cardName);
+        }
+
+        private static bool HasArtTag(CardInfo card)
+        {
+            if (card == null) return false;
+            if (card.GetComponent<MmCardArtTag>() != null) return true;
+            return card.cardArt != null && card.cardArt.GetComponent<MmCardArtTag>() != null;
+        }
+
+        internal static void RestampAll()
+        {
+            foreach (var bar in UnityEngine.Object.FindObjectsOfType<CardBar>())
+                ApplyAllMmOnBar(bar);
         }
 
         internal static void ApplyToLatestButton(CardBar bar)
@@ -72,14 +88,11 @@ namespace LeanAndMeanCards.Utils
         internal static Sprite SpriteFor(CardInfo card)
         {
             if (card == null) return null;
-            if (card.cardArt != null)
+            var artName = CardArtFactory.ArtNameFor(card);
+            if (!string.IsNullOrEmpty(artName))
             {
-                var tag = card.cardArt.GetComponent<MmCardArtTag>();
-                if (tag != null && !string.IsNullOrEmpty(tag.ArtName))
-                {
-                    var mini = CardArtFactory.GetMiniSprite(tag.ArtName);
-                    if (mini != null) return mini;
-                }
+                var mini = CardArtFactory.GetMiniSprite(artName);
+                if (mini != null) return mini;
             }
 
             return IsMmCard(card) ? card.sprite : null;
@@ -97,13 +110,7 @@ namespace LeanAndMeanCards.Utils
                 var fancyType = FancyIconType();
                 if (fancyType == null) return;
 
-                string artName = null;
-                if (info.cardArt != null)
-                {
-                    var tag = info.cardArt.GetComponent<MmCardArtTag>();
-                    if (tag != null) artName = tag.ArtName;
-                }
-
+                var artName = CardArtFactory.ArtNameFor(info);
                 if (string.IsNullOrEmpty(artName)) return;
                 var prefab = GetOrCreateFancyPrefab(artName);
                 if (prefab == null) return;

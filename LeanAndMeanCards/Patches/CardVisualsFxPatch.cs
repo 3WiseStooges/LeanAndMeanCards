@@ -3,6 +3,7 @@ using System.Reflection;
 using HarmonyLib;
 using LeanAndMeanCards.Utils;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace LeanAndMeanCards.Patches
 {
@@ -52,7 +53,7 @@ namespace LeanAndMeanCards.Patches
             try
             {
                 Apply(__instance, keepParticlesDown: true);
-                if (FindFx(__instance) != null && __instance.GetComponent<GlowGuard>() == null)
+                if (IsMmVisual(__instance) && __instance.GetComponent<GlowGuard>() == null)
                     __instance.gameObject.AddComponent<GlowGuard>();
             }
             catch (Exception ex)
@@ -78,10 +79,11 @@ namespace LeanAndMeanCards.Patches
 
         internal static void Apply(CardVisuals visuals, bool keepParticlesDown)
         {
+            if (visuals == null) return;
             var fx = FindFx(visuals);
-            if (fx == null) return;
+            if (fx == null && !IsMmVisual(visuals)) return;
 
-            var glow = CardArtFx.GlowScaleFor(fx);
+            var glow = fx != null ? CardArtFx.GlowScaleFor(fx) : 0f;
             var isSelected = IsSelectedField != null && (bool)IsSelectedField.GetValue(visuals);
             var part = PartField?.GetValue(visuals) as GeneralParticleSystem;
 
@@ -99,6 +101,8 @@ namespace LeanAndMeanCards.Patches
                 if (glow <= 0.001f)
                 {
                     KillParticle(part);
+                    if (part.gameObject != visuals.gameObject)
+                        part.gameObject.SetActive(false);
                 }
                 else
                 {
@@ -120,10 +124,16 @@ namespace LeanAndMeanCards.Patches
             }
 
             if (keepParticlesDown && glow <= 0.001f)
+            {
                 KillAllParticles(visuals.transform);
+                var info = CardInfoOf(visuals);
+                if (info != null) KillAllParticles(info.transform);
+            }
+
+            LockArtColors(visuals);
 
             var moving = visuals.GetComponentInChildren<MmMovingCardBackground>(true);
-            if (moving == null) return;
+            if (moving == null || fx == null) return;
 
             if (!fx.MovingBackground)
             {
@@ -143,6 +153,29 @@ namespace LeanAndMeanCards.Patches
             if (max > 0.4f) tint *= 0.4f / max;
             moving.SetTint(tint);
             moving.enabled = true;
+        }
+
+        private static bool IsMmVisual(CardVisuals visuals)
+        {
+            return CardBarMiniIcons.IsMmCard(CardInfoOf(visuals));
+        }
+
+        private static CardInfo CardInfoOf(CardVisuals visuals)
+        {
+            return visuals.GetComponentInParent<CardInfo>() ?? visuals.GetComponent<CardInfo>();
+        }
+
+        private static void LockArtColors(CardVisuals visuals)
+        {
+            var info = CardInfoOf(visuals);
+            var root = info != null ? info.transform : visuals.transform;
+            foreach (var tag in root.GetComponentsInChildren<MmCardArtTag>(true))
+            {
+                var img = tag.GetComponent<Image>();
+                if (img != null) img.color = MmArtColorLock.ArtColor;
+                if (tag.GetComponent<MmArtColorLock>() == null)
+                    tag.gameObject.AddComponent<MmArtColorLock>();
+            }
         }
 
         internal static void KillAllParticles(Transform root)
