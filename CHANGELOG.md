@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.2.0
+
+- **Silver Egg** moves here from Mulligan Madness: hatches after 2 rounds into a small
+  common/uncommon haul. The host rolls once and syncs the loot so remotes do not each
+  get a different hand.
+- Bozo Shoes sit lower on the feet, and no longer toast when someone is wearing them.
+- Dynamite knocks harder and no longer fires the hit chromatic / screen-shake path.
+  Blast knockback also skips bullets so host bounce trajectories are not flattened.
+- Pick-card and mini-icon particle glow is killed for this pack's art (sticker outlines
+  stay). Hold-to-shoot still works when Pisser is paired with Spray.
+
 ## 1.1.5
 
 - Refresh the Thunderstore listing.

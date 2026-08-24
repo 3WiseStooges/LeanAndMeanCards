@@ -1,8 +1,8 @@
 {
   "name": "LeanAndMeanCards",
-  "version_number": "1.1.5",
+  "version_number": "1.2.0",
   "website_url": "https://github.com/3WiseStooges/LeanAndMeanCards",
-  "description": "Fourteen cards: knockback, stuns, delayed blasts, and a few that mess with someone else's pick.",
+  "description": "Fifteen cards: knockback, stuns, delayed blasts, a hatching Silver Egg, and a few that mess with someone else's pick.",
   "dependencies": [
     "BepInEx-BepInExPack_ROUNDS-5.4.1900",
     "willis81808-UnboundLib-3.2.14",

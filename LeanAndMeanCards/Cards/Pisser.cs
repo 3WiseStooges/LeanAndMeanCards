@@ -48,5 +48,11 @@ namespace LeanAndMeanCards.Cards
 
             CardStatApply.AddAmmo(gun, 4);
         }
+
+        public override void OnAddCard(Player player, Gun gun, GunAmmo gunAmmo, CharacterData data, HealthHandler health,
+            Gravity gravity, Block block, CharacterStatModifiers characterStats)
+        {
+            PisserHoldFire.Ensure(player);
+        }
     }
 }

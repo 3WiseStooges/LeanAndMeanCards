@@ -7,9 +7,8 @@ using UnityEngine;
 namespace LeanAndMeanCards.Patches
 {
     /// <summary>
-    /// Softens (or kills) vanilla CardVisuals particle glow for MulliganMadness cards, and tints
-    /// MmMovingCardBackground from the card theme colors.
-    /// Stacked Photon cards + Nest Egg yellow art made remote views wash out white.
+    /// Kills vanilla CardVisuals particle glow for this pack's sticker art.
+    /// Vanilla re-enables `part` after Start, so a LateUpdate guard keeps it off.
     /// </summary>
     [HarmonyPatch(typeof(CardVisuals))]
     internal static class CardVisualsFxPatch
@@ -26,6 +25,25 @@ namespace LeanAndMeanCards.Patches
             public bool Captured;
         }
 
+        private sealed class GlowGuard : MonoBehaviour
+        {
+            private CardVisuals _visuals;
+
+            private void Awake() => _visuals = GetComponent<CardVisuals>();
+
+            private void LateUpdate()
+            {
+                if (_visuals == null) return;
+                try
+                {
+                    Apply(_visuals, keepParticlesDown: true);
+                }
+                catch
+                {
+                }
+            }
+        }
+
         [HarmonyPostfix]
         [HarmonyPatch("Start")]
         private static void AfterStart(CardVisuals __instance)
@@ -33,7 +51,9 @@ namespace LeanAndMeanCards.Patches
             if (__instance == null) return;
             try
             {
-                Apply(__instance);
+                Apply(__instance, keepParticlesDown: true);
+                if (FindFx(__instance) != null && __instance.GetComponent<GlowGuard>() == null)
+                    __instance.gameObject.AddComponent<GlowGuard>();
             }
             catch (Exception ex)
             {
@@ -48,7 +68,7 @@ namespace LeanAndMeanCards.Patches
             if (__instance == null) return;
             try
             {
-                Apply(__instance);
+                Apply(__instance, keepParticlesDown: true);
             }
             catch (Exception ex)
             {
@@ -56,7 +76,7 @@ namespace LeanAndMeanCards.Patches
             }
         }
 
-        private static void Apply(CardVisuals visuals)
+        internal static void Apply(CardVisuals visuals, bool keepParticlesDown)
         {
             var fx = FindFx(visuals);
             if (fx == null) return;
@@ -78,16 +98,7 @@ namespace LeanAndMeanCards.Patches
 
                 if (glow <= 0.001f)
                 {
-                    part.saturationMultiplier = 0f;
-                    part.rate = 0f;
-                    part.simulationSpeedMultiplier = 0f;
-                    part.enabled = false;
-                    if (part.particleSettings != null)
-                    {
-                        var off = part.particleSettings.randomColor;
-                        off.a = 0f;
-                        part.particleSettings.randomColor = off;
-                    }
+                    KillParticle(part);
                 }
                 else
                 {
@@ -108,6 +119,9 @@ namespace LeanAndMeanCards.Patches
                 }
             }
 
+            if (keepParticlesDown && glow <= 0.001f)
+                KillAllParticles(visuals.transform);
+
             var moving = visuals.GetComponentInChildren<MmMovingCardBackground>(true);
             if (moving == null) return;
 
@@ -125,11 +139,41 @@ namespace LeanAndMeanCards.Patches
                 : selected;
             var tint = isSelected ? selected : def;
             if (tint.maxColorComponent < 0.05f) tint = selected;
-            // Cap brightness so any saturated theme cannot wash the art out.
             var max = Mathf.Max(tint.r, tint.g, tint.b);
             if (max > 0.4f) tint *= 0.4f / max;
             moving.SetTint(tint);
             moving.enabled = true;
+        }
+
+        internal static void KillAllParticles(Transform root)
+        {
+            if (root == null) return;
+            foreach (var gps in root.GetComponentsInChildren<GeneralParticleSystem>(true))
+                KillParticle(gps);
+
+            foreach (var ps in root.GetComponentsInChildren<ParticleSystem>(true))
+            {
+                if (ps == null) continue;
+                if (ps.isPlaying) ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+                var em = ps.emission;
+                em.enabled = false;
+                ps.Clear(true);
+            }
+        }
+
+        private static void KillParticle(GeneralParticleSystem part)
+        {
+            if (part == null) return;
+            part.saturationMultiplier = 0f;
+            part.rate = 0f;
+            part.simulationSpeedMultiplier = 0f;
+            part.enabled = false;
+            if (part.particleSettings != null)
+            {
+                var off = part.particleSettings.randomColor;
+                off.a = 0f;
+                part.particleSettings.randomColor = off;
+            }
         }
 
         private static MmCardArtFxTag FindFx(CardVisuals visuals)
@@ -144,7 +188,6 @@ namespace LeanAndMeanCards.Patches
             fx = info.cardArt.GetComponent<MmCardArtFxTag>();
             if (fx != null) return fx;
 
-            // Fallback: any MM factory art still gets glow cut even if AttachToTemplate was skipped.
             if (info.cardArt.GetComponent<MmCardArtTag>() != null)
             {
                 fx = info.cardArt.AddComponent<MmCardArtFxTag>();

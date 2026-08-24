@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Reflection;
 using HarmonyLib;
 using LeanAndMeanCards.Cards;
 using Photon.Pun;
@@ -18,6 +19,12 @@ namespace LeanAndMeanCards.Utils
         private const string EffectName = "MM_DynamiteCharge";
         private static SoundEvent _boom;
         private static bool _boomResolved;
+
+        /// <summary>
+        /// Set while the host applies blast knockback so Screenshaker / chromatic
+        /// prefixes skip the hit-FX path. CallTakeDamage is not used for the blast.
+        /// </summary>
+        internal static bool SuppressHitFx;
 
         internal static void RegisterHooks()
         {
@@ -246,6 +253,7 @@ namespace LeanAndMeanCards.Utils
                 foreach (var npo in Object.FindObjectsOfType<NetworkPhysicsObject>())
                 {
                     if (npo == null) continue;
+                    if (IsProjectileBody(npo.transform)) continue;
                     var rb = npo.GetComponent<Rigidbody2D>() ?? npo.GetComponentInChildren<Rigidbody2D>();
                     var pos = rb != null ? rb.worldCenterOfMass : (Vector2)npo.transform.position;
                     var delta = pos - origin;
@@ -275,10 +283,11 @@ namespace LeanAndMeanCards.Utils
             {
                 if (col == null) continue;
                 if (col.GetComponentInParent<Player>() != null) continue;
-                if (col.GetComponentInParent<ProjectileHit>() != null) continue;
+                if (IsProjectileBody(col.transform)) continue;
                 var rb = col.attachedRigidbody;
                 if (rb == null) rb = col.GetComponentInParent<Rigidbody2D>();
                 if (rb == null || rb.bodyType != RigidbodyType2D.Dynamic) continue;
+                if (IsProjectileBody(rb.transform)) continue;
                 if (!seen.Add(rb.GetInstanceID())) continue;
                 if (rb.GetComponentInParent<NetworkPhysicsObject>() != null) continue;
 
@@ -300,6 +309,20 @@ namespace LeanAndMeanCards.Utils
         {
             var dir = delta.sqrMagnitude < 0.04f ? Vector2.up : delta.normalized;
             return (dir + new Vector2(0f, 0.55f)).normalized;
+        }
+
+        /// <summary>
+        /// True for bullets and their MoveTransform / ProjectileHit hierarchy so blast
+        /// knockback cannot flatten bounce trajectories on the host.
+        /// </summary>
+        internal static bool IsProjectileBody(Transform t)
+        {
+            if (t == null) return false;
+            if (t.GetComponentInParent<ProjectileHit>() != null) return true;
+            if (t.GetComponentInChildren<ProjectileHit>(true) != null) return true;
+            if (t.GetComponentInParent<MoveTransform>() != null) return true;
+            if (t.GetComponentInChildren<MoveTransform>(true) != null) return true;
+            return false;
         }
     }
 
@@ -364,38 +387,42 @@ namespace LeanAndMeanCards.Utils
             if (!DynamiteBlast.IsCombatAuthority()) return;
 
             var origin = (Vector2)transform.position;
-            var players = PlayerManager.instance?.players;
-            if (players != null)
+            DynamiteBlast.SuppressHitFx = true;
+            try
             {
-                foreach (var player in players)
+                var players = PlayerManager.instance?.players;
+                if (players != null)
                 {
-                    if (player?.data?.healthHandler == null) continue;
-                    if (_owner != null && player.teamID == _owner.teamID && player.playerID != _owner.playerID) continue;
+                    foreach (var player in players)
+                    {
+                        if (player?.data?.healthHandler == null) continue;
+                        if (_owner != null && player.teamID == _owner.teamID && player.playerID != _owner.playerID) continue;
 
-                    var delta = (Vector2)player.transform.position - origin;
-                    if (delta.sqrMagnitude > Dynamite.BlastRadius * Dynamite.BlastRadius) continue;
+                        var delta = (Vector2)player.transform.position - origin;
+                        if (delta.sqrMagnitude > Dynamite.BlastRadius * Dynamite.BlastRadius) continue;
 
-                    var dir = delta.sqrMagnitude < 0.04f ? Vector2.up : delta.normalized;
-                    // Bias hard upward so grounded players actually leave the floor.
-                    dir = (dir + new Vector2(0f, 0.85f)).normalized;
-                    var force = dir * Dynamite.BlastForce;
-                    force.y = Mathf.Max(force.y, Dynamite.BlastForce * 0.55f);
-                    player.data.healthHandler.CallTakeForce(
-                        force,
-                        ForceMode2D.Impulse,
-                        true,
-                        true,
-                        Dynamite.BlastFlying);
-                    player.data.healthHandler.CallTakeDamage(
-                        dir * Dynamite.BlastDamage,
-                        (Vector2)player.transform.position,
-                        gameObject,
-                        _owner,
-                        true);
+                        var dir = delta.sqrMagnitude < 0.04f ? Vector2.up : delta.normalized;
+                        // Bias hard upward so grounded players actually leave the floor.
+                        dir = (dir + new Vector2(0f, 0.85f)).normalized;
+                        var force = dir * Dynamite.BlastForce;
+                        force.y = Mathf.Max(force.y, Dynamite.BlastForce * 0.55f);
+                        // Knockback only — CallTakeDamage is what drives chromatic aberration
+                        // and the screen warp. Gun +20% damage is the card's damage stat.
+                        player.data.healthHandler.CallTakeForce(
+                            force,
+                            ForceMode2D.Impulse,
+                            true,
+                            true,
+                            Dynamite.BlastFlying);
+                    }
                 }
-            }
 
-            DynamiteBlast.KnockPhysics(origin, _owner);
+                DynamiteBlast.KnockPhysics(origin, _owner);
+            }
+            finally
+            {
+                DynamiteBlast.SuppressHitFx = false;
+            }
         }
 
         private GameObject MakePulse()
@@ -469,5 +496,36 @@ namespace LeanAndMeanCards.Utils
         {
             DynamiteBlast.TryPlantFromHit(__instance, hitPoint, wasBlocked);
         }
+    }
+
+    /// <summary>
+    /// CallTakeForce still pokes Screenshaker. Skip those calls while a Dynamite blast
+    /// is applying knockback so the screen does not warp.
+    /// </summary>
+    [HarmonyPatch]
+    internal static class DynamiteShakeSkipPatch
+    {
+        private static bool Prepare() => TargetMethods().GetEnumerator().MoveNext();
+
+        private static IEnumerable<MethodBase> TargetMethods()
+        {
+            var names = new[] { "AddShake", "DoShake", "DoShakeObject", "ShakeInternal", "ScaleShake" };
+            var types = new[] { "Screenshaker", "MenuEffects", "ObjectShake", "ChromaticAberration" };
+            foreach (var typeName in types)
+            {
+                var t = AccessTools.TypeByName(typeName);
+                if (t == null) continue;
+                foreach (var m in t.GetMethods(BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic))
+                {
+                    if (m.IsSpecialName) continue;
+                    foreach (var name in names)
+                    {
+                        if (m.Name == name) yield return m;
+                    }
+                }
+            }
+        }
+
+        private static bool Prefix() => !DynamiteBlast.SuppressHitFx;
     }
 }

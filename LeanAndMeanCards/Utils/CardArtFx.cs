@@ -220,8 +220,12 @@ namespace LeanAndMeanCards.Utils
             }
         }
 
-        internal static float GlowScaleFor(MmCardArtFxTag fx) =>
-            fx != null ? Mathf.Clamp(fx.GlowScale, 0f, 0.28f) : DefaultGlow;
+        internal static float GlowScaleFor(MmCardArtFxTag fx)
+        {
+            // Default on: kill particle glow so sticker PNGs stay readable.
+            if (Plugin.Configs == null || Plugin.Configs.SoftenCardGlow.Value) return 0f;
+            return fx != null ? Mathf.Clamp(fx.GlowScale, 0f, 0.28f) : DefaultGlow;
+        }
 
         private static FxSpec Resolve(string artName)
         {

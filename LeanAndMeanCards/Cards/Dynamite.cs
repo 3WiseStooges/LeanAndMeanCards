@@ -9,15 +9,14 @@ namespace LeanAndMeanCards.Cards
         internal const float DamageMult = 1.2f;
         internal const float BlastDelay = 0.9f;
         internal const float BlastRadius = 2.6f;
-        internal const float BlastDamage = 12f;
-        internal const float BlastForce = 48000f;
-        internal const float BlastFlying = 2.8f;
+        internal const float BlastForce = 86000f;
+        internal const float BlastFlying = 3.2f;
         internal static CardInfo Card;
 
         protected override string GetTitle() => Title;
 
         protected override string GetDescription() =>
-            "Bullets plant a small delayed blast on hit, including bounces. Weak boom, but players and loose objects in the radius go flying.";
+            "Bullets plant a small delayed blast on hit, including bounces. Weak boom with no screen warp, but players and loose objects in the radius go flying.";
 
         protected override CardInfo.Rarity GetRarity() => CardInfo.Rarity.Uncommon;
 

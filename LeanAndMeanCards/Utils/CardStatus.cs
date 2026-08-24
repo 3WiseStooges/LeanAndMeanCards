@@ -52,6 +52,10 @@ namespace LeanAndMeanCards.Utils
                         ? "Click to lock"
                         : DraftSniperManager.Remaining(player) + " locks");
 
+                Stat("Silver Egg",
+                    SilverEggManager.ShowStat,
+                    SilverEggManager.StatusText);
+
                 Plugin.Instance?.Log("Registered card statuses with TabInfo.");
             }
             catch (Exception ex)

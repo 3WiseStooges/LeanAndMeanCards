@@ -62,6 +62,7 @@ namespace LeanAndMeanCards.Utils
             }
 
             StripFancyOverlays(button);
+            StripGlow(button);
             EnsureCleanOverlay(button, sprite);
 
             if (card.sprite == null)
@@ -165,6 +166,7 @@ namespace LeanAndMeanCards.Utils
             image.preserveAspect = true;
             image.raycastTarget = false;
             image.color = Color.white;
+            image.material = null;
 
             FancyPrefabs[artName] = go;
             return go;
@@ -225,8 +227,36 @@ namespace LeanAndMeanCards.Utils
             ours.sprite = sprite;
             ours.overrideSprite = sprite;
             ours.color = Color.white;
+            ours.material = null;
             ours.enabled = true;
             ours.gameObject.SetActive(true);
+        }
+
+        /// <summary>
+        /// Particle / bloom leftovers on the bar button wash the mini PNG. Sticker
+        /// outlines on the sprite itself are left alone.
+        /// </summary>
+        private static void StripGlow(GameObject button)
+        {
+            if (button == null) return;
+            LeanAndMeanCards.Patches.CardVisualsFxPatch.KillAllParticles(button.transform);
+
+            for (var i = 0; i < button.transform.childCount; i++)
+            {
+                var child = button.transform.GetChild(i);
+                if (child == null) continue;
+                if (child.name == ChildName) continue;
+                var n = child.name;
+                if (n.IndexOf("glow", StringComparison.OrdinalIgnoreCase) < 0
+                    && n.IndexOf("shine", StringComparison.OrdinalIgnoreCase) < 0
+                    && n.IndexOf("bloom", StringComparison.OrdinalIgnoreCase) < 0
+                    && n.IndexOf("particle", StringComparison.OrdinalIgnoreCase) < 0)
+                {
+                    continue;
+                }
+
+                child.gameObject.SetActive(false);
+            }
         }
     }
 }

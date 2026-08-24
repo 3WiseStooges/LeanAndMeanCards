@@ -18,6 +18,7 @@ namespace LeanAndMeanCards.Cards
             CustomCard.BuildCard<Doorstop>(info => Doorstop.Card = info);
             CustomCard.BuildCard<BozoShoes>(info => BozoShoes.Card = info);
             CustomCard.BuildCard<DraftSniper>(info => DraftSniper.Card = info);
+            CustomCard.BuildCard<SilverEgg>(info => SilverEgg.Card = info);
             CustomCard.BuildCard<YeetCannon>(info => YeetCannon.Card = info);
             CustomCard.BuildCard<Dynamite>(info => Dynamite.Card = info);
             CustomCard.BuildCard<TaserTaserTaser>(info => TaserTaserTaser.Card = info);

@@ -24,7 +24,7 @@ namespace LeanAndMeanCards
     {
         public const string ModId = "com.ljindustries.rounds.leanandmeancards";
         public const string ModName = "Lean and Mean Cards";
-        public const string Version = "1.1.5";
+        public const string Version = "1.2.0";
         public const string ModInitials = "LMC";
         public const string CardsMenuName = "LeanAndMeanCards";
 
@@ -79,6 +79,7 @@ namespace LeanAndMeanCards
             CardArtFactory.BindLoadedCardInfos();
             BozoShoesRuntime.RegisterHooks();
             DynamiteBlast.RegisterHooks();
+            SilverEggManager.RegisterHooks();
             CardStatus.Register();
 
             Instance.ExecuteAfterSeconds(0.8f, DynamiteBlast.Warmup);
@@ -100,6 +101,7 @@ namespace LeanAndMeanCards
             CurseOnlyPlayers.ResetCache();
             DraftSniperManager.ResetForNewGame();
             BozoShoesRuntime.Clear();
+            SilverEggManager.ResetForNewGame();
             SafetyNetEscape.Reset();
             yield break;
         }
@@ -147,7 +149,7 @@ namespace LeanAndMeanCards
 
             SoftenCardGlow = config.Bind(
                 "Visuals", "SoftenCardGlow", true,
-                "Tone down the particle glow on this pack's pick cards.");
+                "Kill the particle glow on this pack's pick cards and mini icons. Sticker outlines stay.");
 
             // Checked against this machine's own Steam account only — a Steam ID never
             // travels over Photon, so this cannot be applied to anyone else remotely.

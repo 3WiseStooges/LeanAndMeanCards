@@ -31,14 +31,9 @@ namespace LeanAndMeanCards.Utils
         internal static void Mark(Player victim)
         {
             if (victim == null) return;
-            var first = Marked.Add(victim.playerID);
+            Marked.Add(victim.playerID);
             AttachVisual(victim);
             EnsureTicker(victim);
-            if (!first) return;
-
-            var name = victim.data?.view?.Owner?.NickName;
-            if (string.IsNullOrEmpty(name)) name = "Player " + (victim.playerID + 1);
-            CardTargetUi.ShowToast($"{name} is wearing Bozo Shoes (+50% knockback).");
         }
 
         private static IEnumerator OnClear(IGameModeHandler gm)
@@ -154,7 +149,7 @@ namespace LeanAndMeanCards.Utils
                 label.localScale = Vector3.one * (0.95f * size);
             }
 
-            var feet = origin + Vector3.down * (0.62f * size);
+            var feet = origin + Vector3.down * (0.92f * size);
             if (shoeL != null)
             {
                 shoeL.position = feet + Vector3.left * (0.28f * size);
