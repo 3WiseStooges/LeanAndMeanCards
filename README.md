@@ -31,7 +31,7 @@ They are their own mod now. Install the others alongside this one if you want th
 | **Bozo Shoes** | Players you hit wear clown shoes and take +50% knockback for the rest of the round |
 | **Doorstop** | +1 block, block cooldown 20% longer |
 | **Dynamite** | +20% damage. Bullets plant a small delayed blast on hit, including bounces. Weak boom, huge knockback. |
-| **Pisser** | +4 ammo, 40% faster fire, no spread, 20% less damage |
+| **Pisser** | +4 ammo, 40% faster fire, 50% tighter spread, 20% less damage |
 
 ## Rare
 

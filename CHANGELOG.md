@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.1.2
+
+- **Fix Pisser causing enormous damage on multi-projectile builds.** It set
+  `gun.multiplySpread = 0` to mean "no spread". `ApplyCardStats.CopyGunStats`
+  multiplies that field, and `Gun.GetShootDirection` uses it as
+  `forward += cross * Random.Range(-spread, spread) * multiplySpread`, so zero
+  pinned every projectile to one identical vector. On any shotgun-style build the
+  whole volley stacked on a single point and landed on the same frame — damage
+  times the projectile count, permanently, on a card meant to be a weak fast
+  spray. It now halves spread instead.
+- Pisser also set `gun.spread` and `gun.evenSpread` to 0. Those are *additive*
+  in `CopyGunStats`, so adding 0 did nothing; removed.
+- Pisser no longer writes spread fields straight onto the live gun in
+  `OnAddCard`. That bypassed the card system and could not be undone if the card
+  was later removed.
+- Card text and stat readout now say "-50% spread" instead of "no spread".
+
 ## 1.1.1
 
 - **Fix: no cards during the pick phase online.** Draft Sniper's guard on
