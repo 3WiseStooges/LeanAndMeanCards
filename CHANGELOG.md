@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.1.3
+
+- **Dynamite's blast marker now matches the damage it does.** It was an opaque filled
+  disc drawn at `sortingOrder 40` — in front of every player and bullet — and the
+  dedupe guard was only 0.05 units within 0.08s, so a fast gun planted a separate
+  marker per pellet. A dozen overlapping opaque discs in front of the fight is what
+  engulfed the screen. It is now a hollow ring, translucent, at `sortingOrder 2`
+  (behind players).
+- The ring is authored so one sprite unit equals one world unit of blast: at scale 1
+  its outer edge sits exactly on `BlastRadius`, the same circle `OverlapCircleAll`
+  damages. It no longer grows during the fuse — urgency comes from brightness and
+  alpha — so the ring never misrepresents what is about to be hit. Previously the
+  drawn area peaked at about 42% of the real damage radius.
+- Plants inside 60% of a blast radius of a charge that is already fusing now merge
+  into it instead of stacking a new one. Anything that close would damage the same
+  targets anyway.
+
 ## 1.1.2
 
 - **Fix Pisser causing enormous damage on multi-projectile builds.** It set

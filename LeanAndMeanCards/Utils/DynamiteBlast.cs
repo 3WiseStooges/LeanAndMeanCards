@@ -169,6 +169,14 @@ namespace LeanAndMeanCards.Utils
 
                 var pos = hitPoint;
                 if (pos == Vector2.zero && hit.transform != null) pos = hit.transform.position;
+
+                // Merge into a charge that is already fusing nearby instead of stacking a
+                // new one. The old guard was 0.05 units within 0.08s, which a fast gun blows
+                // straight through: every pellet planted its own marker and the overlap is
+                // what covered the screen. Anything inside roughly half a blast radius would
+                // damage the same targets anyway, so a second charge there adds nothing but
+                // noise.
+                if (HasLiveChargeNear(pos, Dynamite.BlastRadius * 0.6f)) return;
                 if ((pos - (Vector2)_lastPlantPos).sqrMagnitude < 0.05f && Time.time - _lastPlantTime < 0.08f) return;
                 _lastPlantTime = Time.time;
                 _lastPlantPos = pos;
@@ -183,6 +191,21 @@ namespace LeanAndMeanCards.Utils
             catch
             {
             }
+        }
+
+        /// <summary>
+        /// True when a charge is already counting down within <paramref name="radius"/>.
+        /// </summary>
+        private static bool HasLiveChargeNear(Vector2 pos, float radius)
+        {
+            var rSq = radius * radius;
+            foreach (var charge in Object.FindObjectsOfType<DynamiteCharge>())
+            {
+                if (charge == null) continue;
+                if (((Vector2)charge.transform.position - pos).sqrMagnitude <= rSq) return true;
+            }
+
+            return false;
         }
 
         internal static void SpawnCharge(Vector3 position, Player owner)
@@ -310,16 +333,20 @@ namespace LeanAndMeanCards.Utils
 
                 if (pulse != null)
                 {
-                    var scale = Mathf.Lerp(0.55f, 1.85f, t);
-                    if (on && hot) scale *= 1.18f;
+                    // Scale stays at 1 = exactly the blast radius. Only a slight tick of
+                    // breathing, so the ring never lies about what it is going to hit.
+                    var scale = 1f + (on && hot ? 0.06f : 0f);
                     pulse.transform.localScale = new Vector3(scale, scale, 1f);
+
                     var sr = pulse.GetComponent<SpriteRenderer>();
                     if (sr != null)
                     {
+                        // Urgency comes from brightness and alpha, not from growing.
+                        var a = Mathf.Lerp(0.42f, 0.72f, t);
                         if (on)
-                            sr.color = hot ? Color.white : new Color(1f, 0.85f, 0.25f, 1f);
+                            sr.color = hot ? new Color(1f, 0.97f, 0.9f, a) : new Color(1f, 0.85f, 0.25f, a);
                         else
-                            sr.color = new Color(1f, 0.12f, 0.08f, 0.9f);
+                            sr.color = new Color(1f, 0.12f, 0.08f, a * 0.7f);
                     }
                 }
 
@@ -378,35 +405,59 @@ namespace LeanAndMeanCards.Utils
             go.transform.localPosition = Vector3.zero;
             var sr = go.AddComponent<SpriteRenderer>();
             sr.sprite = FlashSprite();
-            sr.color = new Color(1f, 0.18f, 0.12f, 0.95f);
-            sr.sortingOrder = 40;
-            go.transform.localScale = Vector3.one * 0.55f;
+            sr.color = new Color(1f, 0.18f, 0.12f, 0.55f);
+            // Behind players and bullets. At 40 this painted over the whole fight.
+            sr.sortingOrder = 2;
+            go.transform.localScale = Vector3.one;
             return go;
         }
 
+        /// <summary>
+        /// A soft ring, not a filled disc.
+        ///
+        /// Built so one world unit of sprite equals one world unit of blast: the texture is
+        /// authored at BlastRadius, so a localScale of 1 draws exactly the circle that
+        /// OverlapCircleAll will damage. The old sprite was an opaque filled disc drawn at
+        /// sortingOrder 40 — in front of every player — which is what buried the screen.
+        /// </summary>
         private static Sprite FlashSprite()
         {
             if (_flash != null) return _flash;
-            const int s = 64;
+            const int s = 128;
             var tex = new Texture2D(s, s, TextureFormat.RGBA32, false);
             tex.filterMode = FilterMode.Bilinear;
             var c = (s - 1) * 0.5f;
             var cream = new Color(1f, 0.93f, 0.82f, 1f);
             var red = new Color(0.93f, 0.12f, 0.14f, 1f);
+
             for (var y = 0; y < s; y++)
             {
                 for (var x = 0; x < s; x++)
                 {
-                    var nx = (x - c) / (c * 0.92f);
-                    var ny = (y - c) / (c * 0.92f);
-                    var d = nx * nx + ny * ny;
-                    tex.SetPixel(x, y, d > 1f ? Color.clear : (d > 0.72f ? cream : red));
+                    var nx = (x - c) / c;
+                    var ny = (y - c) / c;
+                    var d = Mathf.Sqrt(nx * nx + ny * ny);
+
+                    // Hollow: only the rim is drawn, so the play area stays readable.
+                    var rim = Mathf.InverseLerp(0.62f, 0.94f, d) * Mathf.InverseLerp(1f, 0.94f, d);
+                    if (d > 1f || rim <= 0.01f)
+                    {
+                        tex.SetPixel(x, y, Color.clear);
+                        continue;
+                    }
+
+                    var col = Color.Lerp(red, cream, Mathf.InverseLerp(0.62f, 0.94f, d));
+                    col.a = Mathf.Clamp01(rim);
+                    tex.SetPixel(x, y, col);
                 }
             }
 
             tex.Apply();
             Object.DontDestroyOnLoad(tex);
-            _flash = Sprite.Create(tex, new Rect(0f, 0f, s, s), new Vector2(0.5f, 0.5f), 64f);
+
+            // pixelsPerUnit = s / (2 * BlastRadius) => sprite diameter == blast diameter at scale 1.
+            var ppu = s / (2f * Dynamite.BlastRadius);
+            _flash = Sprite.Create(tex, new Rect(0f, 0f, s, s), new Vector2(0.5f, 0.5f), ppu);
             return _flash;
         }
     }
