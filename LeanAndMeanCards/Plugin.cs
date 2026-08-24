@@ -24,7 +24,7 @@ namespace LeanAndMeanCards
     {
         public const string ModId = "com.ljindustries.rounds.leanandmeancards";
         public const string ModName = "Lean and Mean Cards";
-        public const string Version = "1.2.0";
+        public const string Version = "1.2.3";
         public const string ModInitials = "LMC";
         public const string CardsMenuName = "LeanAndMeanCards";
 
@@ -84,6 +84,10 @@ namespace LeanAndMeanCards
 
             Instance.ExecuteAfterSeconds(0.8f, DynamiteBlast.Warmup);
             Instance.ExecuteAfterSeconds(2.5f, DynamiteBlast.Warmup);
+            // BuildCard is delayed 2 frames and SetupCard runs before Unbound sets
+            // cardArt / cardName, so the immediate bind above often sees no cards yet.
+            Instance.ExecuteAfterSeconds(0.5f, CardArtFactory.BindLoadedCardInfos);
+            Instance.ExecuteAfterSeconds(2.5f, CardArtFactory.BindLoadedCardInfos);
 
             gameObject.GetOrAddComponent<DraftSniperTicker>();
 

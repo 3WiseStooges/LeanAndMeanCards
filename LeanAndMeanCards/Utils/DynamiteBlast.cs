@@ -322,6 +322,8 @@ namespace LeanAndMeanCards.Utils
             if (t.GetComponentInChildren<ProjectileHit>(true) != null) return true;
             if (t.GetComponentInParent<MoveTransform>() != null) return true;
             if (t.GetComponentInChildren<MoveTransform>(true) != null) return true;
+            if (t.GetComponentInParent<RayHit>() != null) return true;
+            if (t.GetComponentInChildren<RayHit>(true) != null) return true;
             return false;
         }
     }

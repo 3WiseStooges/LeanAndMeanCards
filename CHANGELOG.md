@@ -1,5 +1,27 @@
 # Changelog
 
+## 1.2.3
+
+- **Fix Null bar icons repeating the same mini PNG.** NullManager keeps every
+  `NullCardInfo` on one GameObject, so the first Null we stamped wrote a shared art
+  tag / FancyIcon that every later Null inherited. Null placeholders are no longer
+  treated as Lean and Mean cards; leftover minis on those bar slots are cleared so
+  NullManager's missing-texture icon can show.
+
+## 1.2.2
+
+- **Fix mini PNGs.** Pick-card art loaded because the full PNG search also looks next
+  to the DLL, but mini icons only looked in an `Art/` folder. r2modman extracts those
+  PNGs next to the DLL, so the card bar kept the two-letter labels and the pick-card
+  corner kept the vanilla template icon (which still got the selected-card bloom).
+  Minis now load from either layout, get assigned after Unbound finishes `BuildCard`,
+  and the corner icon is color-locked like the main sticker.
+- **Fix bouncing shots falling flat without Drop Grenade.** Dynamite already skipped its
+  own blast on bullets, but vanilla explosions (Timed Detonation was in the local bots
+  match) still shoved live projectiles on the host. Impulse pushes no longer hit bullets,
+  and this pack's card templates pin `gun.gravity` to 1 so CopyGunStats cannot leak extra
+  drop onto every LAMC card.
+
 ## 1.2.0
 
 - **Silver Egg** moves here from Mulligan Madness: hatches after 2 rounds into a small

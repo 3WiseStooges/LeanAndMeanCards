@@ -10,7 +10,7 @@
          assembly version. Keep AssemblyVersion pinned so a client on 1.0.3 can still receive
          events from a client on 1.0.4; bump FileVersion/Version for releases instead. -->
     <AssemblyVersion>1.0.0.0</AssemblyVersion>
-    <Version>1.2.0</Version>
+    <Version>1.2.3</Version>
     <EnableDefaultCompileItems>true</EnableDefaultCompileItems>
     <NoWarn>$(NoWarn);CS0649</NoWarn>
   </PropertyGroup>

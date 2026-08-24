@@ -19,18 +19,8 @@ namespace LeanAndMeanCards.Utils
 
         internal static bool IsMmCard(CardInfo card)
         {
-            if (card == null) return false;
-            if (HasArtTag(card)) return true;
-            if (card.sourceCard != null && card.sourceCard != card && HasArtTag(card.sourceCard))
-                return true;
-            return CardArtFactory.IsRegisteredCardName(card.cardName);
-        }
-
-        private static bool HasArtTag(CardInfo card)
-        {
-            if (card == null) return false;
-            if (card.GetComponent<MmCardArtTag>() != null) return true;
-            return card.cardArt != null && card.cardArt.GetComponent<MmCardArtTag>() != null;
+            if (card == null || CardArtFactory.IsNullPlaceholder(card)) return false;
+            return !string.IsNullOrEmpty(CardArtFactory.ArtNameFor(card));
         }
 
         internal static void RestampAll()
@@ -61,6 +51,16 @@ namespace LeanAndMeanCards.Utils
         internal static void Apply(GameObject button, CardInfo card)
         {
             if (button == null || card == null) return;
+            // NullManager puts every NullCardInfo on the same GO. Stamping that GO
+            // (or following its shared FancyIcon / art tag) made every later Null
+            // reuse the first mini PNG. Leave Null bar slots to NullManager.
+            if (CardArtFactory.IsNullPlaceholder(card)
+                || CardArtFactory.GameObjectHasNullCardInfo(button))
+            {
+                ClearMmStamp(button);
+                return;
+            }
+
             // FancyCardBar owns every other mod's icons. Touching those buttons
             // (disabling RGB overlays / TMP) blanked the whole bar.
             if (!IsMmCard(card)) return;
@@ -81,8 +81,7 @@ namespace LeanAndMeanCards.Utils
             StripGlow(button);
             EnsureCleanOverlay(button, sprite);
 
-            if (card.sprite == null)
-                card.sprite = sprite;
+            card.sprite = sprite;
         }
 
         internal static Sprite SpriteFor(CardInfo card)
@@ -106,7 +105,8 @@ namespace LeanAndMeanCards.Utils
         {
             try
             {
-                if (info == null || !IsMmCard(info)) return;
+                if (info == null || !IsMmCard(info) || CardArtFactory.IsNullPlaceholder(info))
+                    return;
                 var fancyType = FancyIconType();
                 if (fancyType == null) return;
 
@@ -237,6 +237,29 @@ namespace LeanAndMeanCards.Utils
             ours.material = null;
             ours.enabled = true;
             ours.gameObject.SetActive(true);
+        }
+
+        private static void ClearMmStamp(GameObject button)
+        {
+            if (button == null) return;
+
+            var mini = button.transform.Find(ChildName);
+            if (mini != null) mini.gameObject.SetActive(false);
+
+            for (var i = 0; i < button.transform.childCount; i++)
+            {
+                var child = button.transform.GetChild(i);
+                if (child == null) continue;
+                if (child.name.StartsWith("MM_FancyBarIcon_", StringComparison.Ordinal)
+                    || child.GetComponentInChildren<MmCardArtTag>(true) != null)
+                    child.gameObject.SetActive(false);
+            }
+
+            foreach (var tmp in button.GetComponentsInChildren<TMP_Text>(true))
+            {
+                if (tmp == null) continue;
+                tmp.enabled = true;
+            }
         }
 
         /// <summary>

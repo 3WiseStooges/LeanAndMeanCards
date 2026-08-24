@@ -15,8 +15,17 @@ namespace LeanAndMeanCards.Cards
         public override void SetupCard(CardInfo cardInfo, Gun gun, ApplyCardStats cardStats, CharacterStatModifiers statModifiers)
         {
             cardInfo.allowMultiple = AllowMultiple;
+            // CopyGunStats multiplies gravity from the card template. Unbound Instantiates
+            // templateCard, so a leftover value here would make every LAMC card feel like
+            // Drop Grenade (bounces fall flat) even when this card does not touch gravity.
+            if (gun != null) gun.gravity = 1f;
             // Local / Photon clones of CardInfo often drop cardArt tags. Register
             // the name here so the card bar can still find the mini PNG.
+            CardArtFactory.TryAssignSprite(cardInfo);
+        }
+
+        public override void Callback()
+        {
             CardArtFactory.TryAssignSprite(cardInfo);
         }
 

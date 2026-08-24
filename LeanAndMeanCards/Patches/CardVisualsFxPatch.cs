@@ -37,7 +37,7 @@ namespace LeanAndMeanCards.Patches
                 if (_visuals == null) return;
                 try
                 {
-                    Apply(_visuals, keepParticlesDown: true);
+                    Apply(_visuals, keepParticlesDown: true, stampMinis: false);
                 }
                 catch
                 {
@@ -52,7 +52,7 @@ namespace LeanAndMeanCards.Patches
             if (__instance == null) return;
             try
             {
-                Apply(__instance, keepParticlesDown: true);
+                Apply(__instance, keepParticlesDown: true, stampMinis: true);
                 if (IsMmVisual(__instance) && __instance.GetComponent<GlowGuard>() == null)
                     __instance.gameObject.AddComponent<GlowGuard>();
             }
@@ -69,7 +69,7 @@ namespace LeanAndMeanCards.Patches
             if (__instance == null) return;
             try
             {
-                Apply(__instance, keepParticlesDown: true);
+                Apply(__instance, keepParticlesDown: true, stampMinis: true);
             }
             catch (Exception ex)
             {
@@ -77,7 +77,7 @@ namespace LeanAndMeanCards.Patches
             }
         }
 
-        internal static void Apply(CardVisuals visuals, bool keepParticlesDown)
+        internal static void Apply(CardVisuals visuals, bool keepParticlesDown, bool stampMinis = false)
         {
             if (visuals == null) return;
             var fx = FindFx(visuals);
@@ -131,6 +131,7 @@ namespace LeanAndMeanCards.Patches
             }
 
             LockArtColors(visuals);
+            if (stampMinis) CardArtFactory.TryAssignSprite(CardInfoOf(visuals));
 
             var moving = visuals.GetComponentInChildren<MmMovingCardBackground>(true);
             if (moving == null || fx == null) return;
@@ -175,6 +176,14 @@ namespace LeanAndMeanCards.Patches
                 if (img != null) img.color = MmArtColorLock.ArtColor;
                 if (tag.GetComponent<MmArtColorLock>() == null)
                     tag.gameObject.AddComponent<MmArtColorLock>();
+            }
+
+            foreach (var colorLock in root.GetComponentsInChildren<MmArtColorLock>(true))
+            {
+                var img = colorLock.GetComponent<Image>();
+                if (img != null) img.color = MmArtColorLock.ArtColor;
+                var sr = colorLock.GetComponent<SpriteRenderer>();
+                if (sr != null) sr.color = MmArtColorLock.ArtColor;
             }
         }
 

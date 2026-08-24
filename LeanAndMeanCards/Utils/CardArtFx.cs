@@ -35,12 +35,18 @@ namespace LeanAndMeanCards.Utils
         internal static readonly Color ArtColor = new Color(0.82f, 0.82f, 0.82f, 1f);
 
         private Image _image;
+        private SpriteRenderer _sr;
 
-        private void Awake() => _image = GetComponent<Image>();
+        private void Awake()
+        {
+            _image = GetComponent<Image>();
+            _sr = GetComponent<SpriteRenderer>();
+        }
 
         private void LateUpdate()
         {
             if (_image != null) _image.color = ArtColor;
+            if (_sr != null) _sr.color = ArtColor;
         }
     }
 
