@@ -204,7 +204,7 @@ namespace LeanAndMeanCards.Utils
             if (victim == null) return;
             if (!PendingTakebackByVictim.ContainsKey(victim.playerID))
             {
-                PlayerNotice.Show(victim, "Nothing to take back.");
+                Plugin.Instance?.Log($"Takebacksies: player {victim.playerID} had nothing to take back.");
                 return;
             }
 
@@ -258,12 +258,7 @@ namespace LeanAndMeanCards.Utils
         {
             PendingTakebackByVictim.Remove(victimId);
             if (string.IsNullOrEmpty(message)) return;
-
-            var victim = PlayerManager.instance.players.FirstOrDefault(p => p.playerID == victimId);
-            if (victim?.data?.view != null && victim.data.view.IsMine)
-            {
-                PlayerNotice.Show(victim, message);
-            }
+            Plugin.Instance?.Log($"Takebacksies for player {victimId}: {message}");
         }
     }
 

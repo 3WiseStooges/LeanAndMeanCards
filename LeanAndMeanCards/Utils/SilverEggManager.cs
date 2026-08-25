@@ -2,7 +2,9 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using HarmonyLib;
 using LeanAndMeanCards.Cards;
+using ModdingUtils.Utils;
 using Photon.Pun;
 using UnboundLib;
 using UnboundLib.GameModes;
@@ -73,8 +75,7 @@ namespace LeanAndMeanCards.Utils
             var tracked = PendingCount(player);
             if (tracked >= Math.Max(owned, 1)) return;
             Pending.Add(new Hatch { PlayerId = player.playerID, RoundsLeft = HatchRounds });
-            if (player.data?.view == null || !player.data.view.IsMine) return;
-            CardTargetUi.ShowToast($"Silver Egg: hatches into random cards in {HatchRounds} rounds.");
+            Plugin.Instance?.Log($"Silver Egg gained by player {player.playerID} ({PlayerLabels.For(player)}).");
         }
 
         internal static void NotifyRemoved(Player player)
@@ -196,20 +197,92 @@ namespace LeanAndMeanCards.Utils
                 foreach (var card in grants)
                 {
                     if (card == null) continue;
-                    CardsApi.instance.AddCardToPlayer(player, card, false, "", 2f, 2f, true);
+                    CardsApi.instance.AddCardToPlayer(player, card, false, "", 0f, 0f, true);
                 }
             }
 
-            if (player.data?.view != null && player.data.view.IsMine)
+            var names = string.Join(", ", grants.Where(c => c != null).Select(c => c.cardName));
+            Plugin.Instance?.Log(
+                $"Silver Egg hatched for player {playerId} ({PlayerLabels.For(player)}) -> {grants.Count} card(s): {names}");
+
+            EnsureHatchedCardsOnBar(player, grants);
+        }
+
+        private static void EnsureHatchedCardsOnBar(Player player, List<CardInfo> grants)
+        {
+            if (player == null || grants == null || grants.Count == 0) return;
+
+            void Pass()
             {
-                var names = string.Join(", ", grants.Where(c => c != null).Select(c => c.cardName));
-                CardTargetUi.ShowToast(
-                    grants.Count == 0
-                        ? "Silver Egg hatched, but no cards were available."
-                        : $"Silver Egg hatched: {names}");
+                try
+                {
+                    EnsureCardsOnBar(player, grants);
+                    CardBarMiniIcons.RestampAll();
+                }
+                catch (Exception ex)
+                {
+                    Plugin.Instance?.LogWarn($"Silver Egg bar stamp skipped: {ex.Message}");
+                }
             }
 
-            Plugin.Instance?.Log($"Silver Egg hatched for player {playerId} -> {grants.Count} card(s).");
+            Pass();
+            if (Unbound.Instance == null) return;
+            Unbound.Instance.ExecuteAfterFrames(2, Pass);
+            Unbound.Instance.ExecuteAfterFrames(8, Pass);
+            Unbound.Instance.ExecuteAfterFrames(20, Pass);
+        }
+
+        private static void EnsureCardsOnBar(Player player, List<CardInfo> grants)
+        {
+            var bar = CardBarUtils.instance?.PlayersCardBar(player.playerID);
+            if (bar == null) return;
+
+            foreach (var card in grants)
+            {
+                if (card == null) continue;
+                var owned = CountOwnedNamed(player, card);
+                var onBar = CountOnBar(bar, card);
+                if (onBar >= owned) continue;
+                CardBarUtils.SilentAddToCardBar(player.playerID, card, "");
+            }
+        }
+
+        private static int CountOwnedNamed(Player player, CardInfo card)
+        {
+            var cards = player?.data?.currentCards;
+            if (cards == null || card == null) return 0;
+            var count = 0;
+            foreach (var owned in cards)
+            {
+                if (owned == null) continue;
+                if (owned == card ||
+                    string.Equals(owned.cardName, card.cardName, StringComparison.OrdinalIgnoreCase))
+                {
+                    count++;
+                }
+            }
+
+            return count;
+        }
+
+        private static int CountOnBar(CardBar bar, CardInfo card)
+        {
+            if (bar == null || card == null) return 0;
+            var count = 0;
+            var field = AccessTools.Field(typeof(CardBarButton), "card");
+            foreach (var button in bar.GetComponentsInChildren<CardBarButton>(true))
+            {
+                if (button == null) continue;
+                var onBar = field?.GetValue(button) as CardInfo;
+                if (onBar == null) continue;
+                if (onBar == card ||
+                    string.Equals(onBar.cardName, card.cardName, StringComparison.OrdinalIgnoreCase))
+                {
+                    count++;
+                }
+            }
+
+            return count;
         }
 
         // Weaker than Keys Golden Egg (3-4 cards / rare / treasure / blessing rolls).

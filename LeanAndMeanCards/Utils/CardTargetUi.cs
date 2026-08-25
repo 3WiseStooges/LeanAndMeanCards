@@ -12,21 +12,29 @@ namespace LeanAndMeanCards.Utils
         private static Overlay _overlay;
         private static ToastHost _toast;
 
-        internal static void OpenSandbag(Player user, Action<Player> onConfirm)
+        internal static void OpenSandbag(Player user, Action<Player> onConfirm, Action onCancel = null)
         {
             OpenPlayerTarget(
                 user,
                 "Sandbag Simulator",
-                "Choose who rerolls their current pick hand.",
-                "REROLL HAND",
+                "Choose who rerolls their cards. The game waits until you confirm.",
+                "Reroll",
                 onConfirm,
-                includeSelf: true);
+                includeSelf: true,
+                onCancel);
         }
 
-        internal static void OpenPlayerTarget(Player user, string title, string subtitle, string confirmLabel, Action<Player> onConfirm, bool includeSelf)
+        internal static void OpenPlayerTarget(
+            Player user,
+            string title,
+            string subtitle,
+            string confirmLabel,
+            Action<Player> onConfirm,
+            bool includeSelf,
+            Action onCancel = null)
         {
             EnsureOverlay();
-            _overlay.OpenTargetOnly(user, title, subtitle, confirmLabel, onConfirm, includeSelf);
+            _overlay.OpenTargetOnly(user, title, subtitle, confirmLabel, onConfirm, includeSelf, onCancel);
         }
 
         internal static bool IsOpen => _overlay != null && _overlay.gameObject.activeSelf;
@@ -54,10 +62,10 @@ namespace LeanAndMeanCards.Utils
             var canvas = Unbound.Instance?.canvas;
             if (canvas == null) return;
 
-            var go = new GameObject("MM_CardTargetUi", typeof(RectTransform));
+            var go = new GameObject("LAMC_CardTargetUi", typeof(RectTransform));
             go.transform.SetParent(canvas.transform, false);
             _overlay = go.AddComponent<Overlay>();
-            _overlay.Build(canvas.transform);
+            _overlay.Build();
             go.SetActive(false);
         }
 
@@ -67,7 +75,7 @@ namespace LeanAndMeanCards.Utils
             var canvas = Unbound.Instance?.canvas;
             if (canvas == null) return;
 
-            var go = new GameObject("MM_Toast", typeof(RectTransform));
+            var go = new GameObject("LAMC_Toast", typeof(RectTransform));
             go.transform.SetParent(canvas.transform, false);
             _toast = go.AddComponent<ToastHost>();
             _toast.Build();
@@ -78,7 +86,6 @@ namespace LeanAndMeanCards.Utils
         {
             private TextMeshProUGUI _label;
             private CanvasGroup _group;
-            private Image _bg;
 
             internal void Build()
             {
@@ -94,9 +101,7 @@ namespace LeanAndMeanCards.Utils
                 _group.interactable = false;
                 _group.alpha = 0f;
 
-                _bg = gameObject.AddComponent<Image>();
-                _bg.color = new Color(0.06f, 0.10f, 0.08f, 0.92f);
-                _bg.raycastTarget = false;
+                UiGfx.Round(gameObject.AddComponent<Image>(), UiGfx.Panel);
 
                 var textGo = new GameObject("Label", typeof(RectTransform));
                 textGo.transform.SetParent(transform, false);
@@ -106,11 +111,7 @@ namespace LeanAndMeanCards.Utils
                 textRect.offsetMin = new Vector2(16f, 8f);
                 textRect.offsetMax = new Vector2(-16f, -8f);
                 _label = textGo.AddComponent<TextMeshProUGUI>();
-                _label.alignment = TextAlignmentOptions.Center;
-                _label.fontSize = 20f;
-                _label.fontStyle = FontStyles.Bold;
-                _label.color = new Color(1f, 0.95f, 0.82f, 1f);
-                _label.raycastTarget = false;
+                UiGfx.StyleTmp(_label, UiGfx.TitleFont, UiGfx.Title, TextAlignmentOptions.Center);
             }
 
             internal void Show(string message)
@@ -140,9 +141,10 @@ namespace LeanAndMeanCards.Utils
             private Player _actor;
             private Player _selected;
             private Action<Player> _onConfirm;
+            private Action _onCancel;
             private string _confirmLabel;
 
-            internal void Build(Transform canvasRoot)
+            internal void Build()
             {
                 var rect = gameObject.GetComponent<RectTransform>();
                 rect.anchorMin = Vector2.zero;
@@ -150,46 +152,79 @@ namespace LeanAndMeanCards.Utils
                 rect.offsetMin = Vector2.zero;
                 rect.offsetMax = Vector2.zero;
 
-                var dim = CreateImage("Dim", transform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
-                dim.color = new Color(0f, 0f, 0f, 0.72f);
+                UiGfx.Solid(
+                    CreateImage("Dim", transform, Vector2.zero, Vector2.one),
+                    UiGfx.Dim,
+                    raycast: true);
 
-                _panel = CreatePanel("Panel", transform, new Vector2(0.5f, 0.5f), new Vector2(680f, 520f));
-                var panelBg = _panel.gameObject.AddComponent<Image>();
-                panelBg.color = new Color(0.08f, 0.12f, 0.10f, 0.98f);
+                _panel = CreatePanel("Panel", transform, new Vector2(560f, 440f));
+                UiGfx.Round(_panel.gameObject.AddComponent<Image>(), UiGfx.Panel);
+                UiGfx.AddAccentBar(_panel);
 
-                _title = CreateText("Title", _panel, new Vector2(24f, -20f), 30f, FontStyles.Bold);
-                _subtitle = CreateText("Subtitle", _panel, new Vector2(24f, -58f), 18f, FontStyles.Normal);
-                _subtitle.color = new Color(0.85f, 0.88f, 0.82f);
+                var layout = _panel.gameObject.AddComponent<VerticalLayoutGroup>();
+                layout.padding = new RectOffset(20, 20, 18, 16);
+                layout.spacing = 8f;
+                layout.childAlignment = TextAnchor.UpperCenter;
+                layout.childControlWidth = true;
+                layout.childControlHeight = false;
+                layout.childForceExpandWidth = true;
+                layout.childForceExpandHeight = false;
+
+                _title = CreateText("Title", _panel, UiGfx.TitleFont, FontStyles.Bold, 26f);
+                _title.color = UiGfx.Title;
+                _subtitle = CreateText("Subtitle", _panel, UiGfx.HintFont, FontStyles.Normal, 36f);
+                _subtitle.color = UiGfx.Hint;
 
                 var gridGo = new GameObject("PlayerGrid", typeof(RectTransform));
                 gridGo.transform.SetParent(_panel, false);
                 _playerGrid = gridGo.transform;
-                var gridRect = gridGo.GetComponent<RectTransform>();
-                gridRect.anchorMin = new Vector2(0f, 0.22f);
-                gridRect.anchorMax = new Vector2(1f, 0.78f);
-                gridRect.offsetMin = new Vector2(24f, 0f);
-                gridRect.offsetMax = new Vector2(-24f, 0f);
-                var layout = gridGo.AddComponent<GridLayoutGroup>();
-                layout.cellSize = new Vector2(190f, 72f);
-                layout.spacing = new Vector2(12f, 12f);
-                layout.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
-                layout.constraintCount = 2;
+                var gridLayout = gridGo.AddComponent<GridLayoutGroup>();
+                gridLayout.cellSize = new Vector2(248f, 52f);
+                gridLayout.spacing = new Vector2(10f, 10f);
+                gridLayout.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+                gridLayout.constraintCount = 2;
+                gridLayout.childAlignment = TextAnchor.UpperCenter;
+                var gridLe = gridGo.AddComponent<LayoutElement>();
+                gridLe.minHeight = 220f;
+                gridLe.flexibleHeight = 1f;
+                gridLe.preferredHeight = 260f;
 
-                _confirmButton = CreateButton("Confirm", _panel, new Vector2(0.56f, 0.08f), _confirmLabel = "CONFIRM");
-                _cancelButton = CreateButton("Cancel", _panel, new Vector2(0.08f, 0.08f), "CANCEL");
-                _cancelButton.onClick.AddListener(Close);
+                var row = new GameObject("Buttons", typeof(RectTransform));
+                row.transform.SetParent(_panel, false);
+                var rowLayout = row.AddComponent<HorizontalLayoutGroup>();
+                rowLayout.spacing = 10f;
+                rowLayout.childAlignment = TextAnchor.MiddleCenter;
+                rowLayout.childControlWidth = true;
+                rowLayout.childControlHeight = true;
+                rowLayout.childForceExpandWidth = true;
+                rowLayout.childForceExpandHeight = true;
+                var rowLe = row.AddComponent<LayoutElement>();
+                rowLe.minHeight = 32f;
+                rowLe.preferredHeight = 32f;
+
+                _cancelButton = CreateRowButton("Cancel", row.transform, "Cancel");
+                _confirmButton = CreateRowButton("Confirm", row.transform, _confirmLabel = "Confirm");
+                _cancelButton.onClick.AddListener(Cancel);
             }
 
-            internal void OpenTargetOnly(Player actor, string title, string subtitle, string confirmLabel, Action<Player> onConfirm, bool includeSelf = true)
+            internal void OpenTargetOnly(
+                Player actor,
+                string title,
+                string subtitle,
+                string confirmLabel,
+                Action<Player> onConfirm,
+                bool includeSelf = true,
+                Action onCancel = null)
             {
                 _actor = actor;
                 _onConfirm = onConfirm;
+                _onCancel = onCancel;
                 _confirmLabel = confirmLabel;
                 _title.text = title;
                 _subtitle.text = subtitle;
                 _confirmButton.GetComponentInChildren<TextMeshProUGUI>().text = confirmLabel;
                 _selected = includeSelf ? actor : null;
-                RebuildPlayerButtons(includeSelf, filterStealable: false);
+                RebuildPlayerButtons(includeSelf);
                 gameObject.SetActive(true);
             }
 
@@ -197,6 +232,7 @@ namespace LeanAndMeanCards.Utils
             {
                 _actor = null;
                 _onConfirm = null;
+                _onCancel = onCancel;
                 _confirmLabel = confirmLabel;
                 _title.text = title;
                 _subtitle.text = subtitle;
@@ -212,13 +248,7 @@ namespace LeanAndMeanCards.Utils
                     button.onClick.AddListener(() =>
                     {
                         picked = captured;
-                        foreach (Transform child in _playerGrid)
-                        {
-                            var img = child.GetComponent<Image>();
-                            if (img != null) img.color = new Color(0.14f, 0.20f, 0.16f, 1f);
-                        }
-
-                        button.GetComponent<Image>().color = new Color(0.18f, 0.48f, 0.30f, 1f);
+                        Highlight(button);
                     });
                 }
 
@@ -230,11 +260,7 @@ namespace LeanAndMeanCards.Utils
                     Close();
                 });
                 _cancelButton.onClick.RemoveAllListeners();
-                _cancelButton.onClick.AddListener(() =>
-                {
-                    onCancel?.Invoke();
-                    Close();
-                });
+                _cancelButton.onClick.AddListener(Cancel);
                 gameObject.SetActive(true);
             }
 
@@ -244,7 +270,15 @@ namespace LeanAndMeanCards.Utils
                 ClearGrid();
             }
 
-            private void RebuildPlayerButtons(bool includeSelf, bool filterStealable)
+            private void Cancel()
+            {
+                var cancel = _onCancel;
+                _onCancel = null;
+                cancel?.Invoke();
+                Close();
+            }
+
+            private void RebuildPlayerButtons(bool includeSelf)
             {
                 ClearGrid();
                 if (PlayerManager.instance?.players == null) return;
@@ -254,10 +288,8 @@ namespace LeanAndMeanCards.Utils
                     if (player == null) continue;
                     if (!includeSelf && _actor != null && player.playerID == _actor.playerID) continue;
 
-                    var stealable = _actor != null ? StealRules.CountStealableCards(_actor, player) : 0;
-                    if (filterStealable && stealable <= 0) continue;
-
-                    var label = BuildPlayerLabel(player, stealable, filterStealable);
+                    var label = PlayerLabels.For(player);
+                    if (_actor != null && player.playerID == _actor.playerID) label += " (You)";
                     var button = CreateGridButton(label, player);
                     var captured = player;
                     button.onClick.AddListener(() => SelectPlayer(captured, button));
@@ -267,77 +299,56 @@ namespace LeanAndMeanCards.Utils
                 _confirmButton.onClick.AddListener(() =>
                 {
                     if (_selected == null) return;
+                    _onCancel = null;
                     _onConfirm?.Invoke(_selected);
                     Close();
                 });
                 _cancelButton.onClick.RemoveAllListeners();
-                _cancelButton.onClick.AddListener(Close);
+                _cancelButton.onClick.AddListener(Cancel);
             }
 
             private void SelectPlayer(Player player, Button button)
             {
                 _selected = player;
-                foreach (Transform child in _playerGrid)
+                Highlight(button);
+            }
+
+            private void Highlight(Button selected)
+            {
+                var parent = selected.transform.parent;
+                foreach (Transform child in parent)
                 {
                     var img = child.GetComponent<Image>();
-                    if (img != null) img.color = new Color(0.14f, 0.20f, 0.16f, 1f);
+                    if (img != null) img.color = UiGfx.Tile;
                 }
 
-                button.GetComponent<Image>().color = new Color(0.18f, 0.48f, 0.30f, 1f);
+                selected.GetComponent<Image>().color = UiGfx.TileSelected;
             }
 
             private Button CreateLabeledButton(string label)
             {
-                var go = new GameObject("Choice", typeof(RectTransform), typeof(Image), typeof(Button));
-                go.transform.SetParent(_playerGrid, false);
-                var image = go.GetComponent<Image>();
-                image.color = new Color(0.14f, 0.20f, 0.16f, 1f);
-                var button = go.GetComponent<Button>();
-                var textGo = new GameObject("Label", typeof(RectTransform));
-                textGo.transform.SetParent(go.transform, false);
-                var rect = textGo.GetComponent<RectTransform>();
-                rect.anchorMin = Vector2.zero;
-                rect.anchorMax = Vector2.one;
-                rect.offsetMin = new Vector2(8f, 4f);
-                rect.offsetMax = new Vector2(-8f, -4f);
-                var tmp = textGo.AddComponent<TextMeshProUGUI>();
-                tmp.text = label;
-                tmp.fontSize = 16f;
-                tmp.alignment = TextAlignmentOptions.Center;
-                tmp.color = Color.white;
-                return button;
+                return CreateTile(label, _playerGrid, selected: false);
             }
 
             private Button CreateGridButton(string label, Player player)
             {
-                var go = new GameObject("Player_" + player.playerID, typeof(RectTransform), typeof(Image), typeof(Button));
-                go.transform.SetParent(_playerGrid, false);
-                var image = go.GetComponent<Image>();
-                image.color = _selected != null && _selected.playerID == player.playerID
-                    ? new Color(0.18f, 0.48f, 0.30f, 1f)
-                    : new Color(0.14f, 0.20f, 0.16f, 1f);
-                var button = go.GetComponent<Button>();
-                var textGo = new GameObject("Label", typeof(RectTransform));
-                textGo.transform.SetParent(go.transform, false);
-                var rect = textGo.GetComponent<RectTransform>();
-                rect.anchorMin = Vector2.zero;
-                rect.anchorMax = Vector2.one;
-                rect.offsetMin = new Vector2(8f, 4f);
-                rect.offsetMax = new Vector2(-8f, -4f);
-                var tmp = textGo.AddComponent<TextMeshProUGUI>();
-                tmp.text = label;
-                tmp.fontSize = 16f;
-                tmp.alignment = TextAlignmentOptions.Center;
-                tmp.color = Color.white;
-                return button;
+                var selected = _selected != null && _selected.playerID == player.playerID;
+                return CreateTile(label, _playerGrid, selected);
             }
 
-            private static string BuildPlayerLabel(Player player, int stealable, bool showStealable)
+            private static Button CreateTile(string label, Transform parent, bool selected)
             {
-                var name = player.data?.view?.Owner?.NickName;
-                if (string.IsNullOrEmpty(name)) name = "Player " + (player.playerID + 1);
-                if (!showStealable) return name;
-                return stealable > 0 ? $"{name}\n{stealable} stealable" : $"{name}\nno cards";
+                var go = new GameObject("Tile", typeof(RectTransform), typeof(Image), typeof(Button));
+                go.transform.SetParent(parent, false);
+                UiGfx.Round(
+                    go.GetComponent<Image>(),
+                    selected ? UiGfx.TileSelected : UiGfx.Tile,
+                    raycast: true);
+                var button = go.GetComponent<Button>();
+                UiGfx.GhostColors(button);
+                var tmp = CreateInnerText(go.transform, label, UiGfx.TileFont);
+                tmp.color = UiGfx.Label;
+                return button;
             }
 
             private void ClearGrid()
@@ -349,72 +360,67 @@ namespace LeanAndMeanCards.Utils
                 }
             }
 
-            private static RectTransform CreatePanel(string name, Transform parent, Vector2 anchor, Vector2 size)
+            private static RectTransform CreatePanel(string name, Transform parent, Vector2 size)
             {
                 var go = new GameObject(name, typeof(RectTransform));
                 go.transform.SetParent(parent, false);
                 var rect = go.GetComponent<RectTransform>();
-                rect.anchorMin = anchor;
-                rect.anchorMax = anchor;
+                rect.anchorMin = new Vector2(0.5f, 0.5f);
+                rect.anchorMax = new Vector2(0.5f, 0.5f);
                 rect.pivot = new Vector2(0.5f, 0.5f);
                 rect.sizeDelta = size;
                 rect.anchoredPosition = Vector2.zero;
                 return rect;
             }
 
-            private static Image CreateImage(string name, Transform parent, Vector2 min, Vector2 max, Vector2 offsetMin, Vector2 offsetMax)
+            private static Image CreateImage(string name, Transform parent, Vector2 min, Vector2 max)
             {
                 var go = new GameObject(name, typeof(RectTransform), typeof(Image));
                 go.transform.SetParent(parent, false);
                 var rect = go.GetComponent<RectTransform>();
                 rect.anchorMin = min;
                 rect.anchorMax = max;
-                rect.offsetMin = offsetMin;
-                rect.offsetMax = offsetMax;
+                rect.offsetMin = Vector2.zero;
+                rect.offsetMax = Vector2.zero;
                 return go.GetComponent<Image>();
             }
 
-            private static TextMeshProUGUI CreateText(string name, Transform parent, Vector2 anchoredPos, float size, FontStyles style)
+            private static TextMeshProUGUI CreateText(string name, Transform parent, float size, FontStyles style, float height)
             {
                 var go = new GameObject(name, typeof(RectTransform));
                 go.transform.SetParent(parent, false);
-                var rect = go.GetComponent<RectTransform>();
-                rect.anchorMin = new Vector2(0f, 1f);
-                rect.anchorMax = new Vector2(1f, 1f);
-                rect.pivot = new Vector2(0f, 1f);
-                rect.anchoredPosition = anchoredPos;
-                rect.sizeDelta = new Vector2(-48f, 32f);
+                go.AddComponent<LayoutElement>().preferredHeight = height;
                 var tmp = go.AddComponent<TextMeshProUGUI>();
-                tmp.fontSize = size;
+                UiGfx.StyleTmp(tmp, size, UiGfx.Title, TextAlignmentOptions.TopLeft);
                 tmp.fontStyle = style;
-                tmp.color = Color.white;
                 return tmp;
             }
 
-            private static Button CreateButton(string name, Transform parent, Vector2 anchorMin, string label)
+            private static TextMeshProUGUI CreateInnerText(Transform parent, string label, float size)
+            {
+                var textGo = new GameObject("Label", typeof(RectTransform));
+                textGo.transform.SetParent(parent, false);
+                var rect = textGo.GetComponent<RectTransform>();
+                rect.anchorMin = Vector2.zero;
+                rect.anchorMax = Vector2.one;
+                rect.offsetMin = new Vector2(10f, 6f);
+                rect.offsetMax = new Vector2(-10f, -6f);
+                var tmp = textGo.AddComponent<TextMeshProUGUI>();
+                tmp.text = label;
+                UiGfx.StyleTmp(tmp, size, UiGfx.Label, TextAlignmentOptions.Center);
+                return tmp;
+            }
+
+            private static Button CreateRowButton(string name, Transform parent, string label)
             {
                 var go = new GameObject(name, typeof(RectTransform), typeof(Image), typeof(Button));
                 go.transform.SetParent(parent, false);
-                var rect = go.GetComponent<RectTransform>();
-                rect.anchorMin = anchorMin;
-                rect.anchorMax = anchorMin;
-                rect.pivot = new Vector2(0f, 0f);
-                rect.sizeDelta = new Vector2(260f, 48f);
-                rect.anchoredPosition = Vector2.zero;
-                go.GetComponent<Image>().color = new Color(0.12f, 0.42f, 0.28f, 1f);
+                go.AddComponent<LayoutElement>().preferredHeight = 32f;
+                UiGfx.Round(go.GetComponent<Image>(), UiGfx.Tile, raycast: true);
                 var button = go.GetComponent<Button>();
-                var textGo = new GameObject("Label", typeof(RectTransform));
-                textGo.transform.SetParent(go.transform, false);
-                var textRect = textGo.GetComponent<RectTransform>();
-                textRect.anchorMin = Vector2.zero;
-                textRect.anchorMax = Vector2.one;
-                textRect.offsetMin = Vector2.zero;
-                textRect.offsetMax = Vector2.zero;
-                var tmp = textGo.AddComponent<TextMeshProUGUI>();
-                tmp.text = label;
-                tmp.alignment = TextAlignmentOptions.Center;
-                tmp.fontSize = 18f;
-                tmp.fontStyle = FontStyles.Bold;
+                UiGfx.GhostColors(button);
+                var tmp = CreateInnerText(go.transform, label, UiGfx.ButtonFont);
+                tmp.color = UiGfx.Label;
                 return button;
             }
         }

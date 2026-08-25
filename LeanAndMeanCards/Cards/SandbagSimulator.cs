@@ -11,7 +11,7 @@ namespace LeanAndMeanCards.Cards
         protected override string GetTitle() => Title;
 
         protected override string GetDescription() =>
-            "Reroll any player's current pick hand - including your own. Host can limit uses per game.";
+            "Reroll any player's cards - including your own. The pick waits until you choose. Host can limit uses per game.";
 
         protected override CardInfo.Rarity GetRarity() => RarityHelper.Legendary;
 

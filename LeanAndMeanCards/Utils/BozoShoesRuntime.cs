@@ -144,7 +144,7 @@ namespace LeanAndMeanCards.Utils
 
             if (label != null)
             {
-                label.position = head + Vector3.up * (0.28f * size);
+                label.position = head + Vector3.up * (0.58f * size);
                 label.rotation = Quaternion.identity;
                 label.localScale = Vector3.one * (0.95f * size);
             }

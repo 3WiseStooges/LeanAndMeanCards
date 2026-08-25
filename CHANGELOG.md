@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.2.4
+
+- Silver Egg no longer toasts when you pick it or when it hatches. Hatch still
+  grants the cards, logs the names, and restamps the card bar so a hatched card
+  like Bozo Shoes actually shows in the top right.
+- BOZO sits higher above the health bar.
+- Sandbag Simulator no longer dumps you into the fight while the prompt is
+  open. The pick waits until you confirm or cancel. It queues Wills Wacky
+  Managers' reroll instead of calling a method signature that does not exist
+  (that is why nobody's cards changed). Local bots show color names instead of
+  Player 1 / Player 2.
+- Thief and Sandbag use the same glass panels, rounded tiles, and ghost
+  buttons as Pro MLG Stats. Only the player who picked Thief can use it.
+- Takebacksies just takes the card back. No toast.
+
 ## 1.2.3
 
 - **Fix Null bar icons repeating the same mini PNG.** NullManager keeps every

@@ -2,12 +2,10 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
 using HarmonyLib;
 using Photon.Pun;
 using UnboundLib;
 using UnboundLib.Networking;
-using UnityEngine;
 
 namespace LeanAndMeanCards.Utils
 {
@@ -31,11 +29,24 @@ namespace LeanAndMeanCards.Utils
                 return;
             }
 
-            CardTargetUi.OpenSandbag(user, target =>
-            {
-                if (target == null) return;
-                NetworkingManager.RPC(typeof(SandbagManager), nameof(RPCA_RerollTarget), user.playerID, target.playerID);
-            });
+            PickUiHold.Push();
+            CardTargetUi.OpenSandbag(
+                user,
+                target =>
+                {
+                    if (target == null)
+                    {
+                        PickUiHold.Pop();
+                        return;
+                    }
+
+                    NetworkingManager.RPC(
+                        typeof(SandbagManager),
+                        nameof(RPCA_RerollTarget),
+                        user.playerID,
+                        target.playerID);
+                },
+                onCancel: PickUiHold.Pop);
         }
 
         [UnboundRPC]
@@ -43,18 +54,24 @@ namespace LeanAndMeanCards.Utils
         {
             var user = PlayerManager.instance.players.FirstOrDefault(p => p.playerID == userId);
             var target = PlayerManager.instance.players.FirstOrDefault(p => p.playerID == targetId);
-            if (user == null || target == null) return;
+            if (user == null || target == null)
+            {
+                PickUiHold.Pop();
+                return;
+            }
 
             if (!(PhotonNetwork.OfflineMode || PhotonNetwork.IsMasterClient)) return;
 
             if (Plugin.Configs.SandbagOncePerGame.Value && UsedThisGame.Contains(userId))
             {
+                PickUiHold.Pop();
                 NotifySandbagResult(userId, false, "Sandbag already used this game.");
                 return;
             }
 
             if (ItemShopGuard.AnyPlayerInShop())
             {
+                PickUiHold.Pop();
                 Plugin.Instance.LogWarn("Sandbag blocked - shop open.");
                 NotifySandbagResult(userId, false, "Can't sandbag during a shop.");
                 return;
@@ -65,15 +82,23 @@ namespace LeanAndMeanCards.Utils
             var manager = instanceProp?.GetValue(null);
             if (manager == null)
             {
+                PickUiHold.Pop();
                 Plugin.Instance.LogWarn("Sandbag failed - RerollManager missing.");
+                NotifySandbagResult(userId, false, "Sandbag failed (Wills Wacky Managers missing).");
+                return;
+            }
+
+            if (!QueuePendingReroll(manager, managerType, target))
+            {
+                PickUiHold.Pop();
                 NotifySandbagResult(userId, false, "Sandbag failed.");
                 return;
             }
 
             NetworkingManager.RPC(typeof(SandbagManager), nameof(RPCA_SyncSandbagUsed), userId);
-            Plugin.Instance.StartCoroutine(RerollTargetRoutine(target, managerType, manager));
-            NotifySandbagResult(userId, true, $"Sandbagged player {targetId + 1}.");
-            Plugin.Instance.Log($"Player {userId} sandbagged player {targetId}'s hand.");
+            PickUiHold.Pop();
+            NotifySandbagResult(userId, true, $"Sandbagged {PlayerLabels.For(target)}.");
+            Plugin.Instance.Log($"Player {userId} sandbagged {PlayerLabels.For(target)} (id {targetId}).");
         }
 
         [UnboundRPC]
@@ -98,46 +123,55 @@ namespace LeanAndMeanCards.Utils
             NetworkingManager.RPC(typeof(SandbagManager), nameof(RPCA_SandbagResult), userId, ok, message ?? "");
         }
 
-        private static IEnumerator RerollTargetRoutine(Player target, Type managerType, object manager)
-        {
-            var rerollMethod = AccessTools.Method(managerType, "Reroll", new[] { typeof(Player), typeof(bool) });
-            if (rerollMethod == null)
-            {
-                Plugin.Instance.LogWarn("Sandbag failed - Reroll method missing.");
-                QueuePendingReroll(manager, managerType, target);
-                yield break;
-            }
-
-            var routine = rerollMethod.Invoke(manager, new object[] { target, false }) as IEnumerator;
-            if (routine == null)
-            {
-                QueuePendingReroll(manager, managerType, target);
-                yield break;
-            }
-
-            while (routine.MoveNext())
-            {
-                yield return routine.Current;
-            }
-        }
-
-        private static void QueuePendingReroll(object manager, Type managerType, Player target)
+        private static bool QueuePendingReroll(object manager, Type managerType, Player target)
         {
             try
             {
-                var listField = AccessTools.Field(managerType, "rerollPlayers");
-                if (listField?.GetValue(manager) is IList list)
+                var list = GetMemberValue(manager, managerType, "rerollPlayers") as IList;
+                if (list == null)
                 {
-                    if (!list.Contains(target)) list.Add(target);
+                    Plugin.Instance.LogWarn("Sandbag failed - rerollPlayers missing.");
+                    return false;
                 }
 
-                var flagField = AccessTools.Field(managerType, "reroll");
-                if (flagField != null) flagField.SetValue(manager, true);
+                if (!list.Contains(target)) list.Add(target);
+
+                if (!SetMemberValue(manager, managerType, "reroll", true))
+                {
+                    Plugin.Instance.LogWarn("Sandbag failed - reroll flag missing.");
+                    return false;
+                }
+
+                return true;
             }
             catch (Exception ex)
             {
-                Plugin.Instance.LogWarn($"Sandbag queue fallback failed: {ex.Message}");
+                Plugin.Instance.LogWarn($"Sandbag queue failed: {ex.Message}");
+                return false;
             }
+        }
+
+        private static object GetMemberValue(object instance, Type type, string name)
+        {
+            var prop = AccessTools.Property(type, name);
+            if (prop != null) return prop.GetValue(instance, null);
+            var field = AccessTools.Field(type, name);
+            return field?.GetValue(instance);
+        }
+
+        private static bool SetMemberValue(object instance, Type type, string name, object value)
+        {
+            var prop = AccessTools.Property(type, name);
+            if (prop != null && prop.CanWrite)
+            {
+                prop.SetValue(instance, value, null);
+                return true;
+            }
+
+            var field = AccessTools.Field(type, name);
+            if (field == null) return false;
+            field.SetValue(instance, value);
+            return true;
         }
     }
 }

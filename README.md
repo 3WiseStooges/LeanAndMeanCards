@@ -47,8 +47,8 @@ They are their own mod now. Install the others alongside this one if you want th
 
 | | |
 | :---: | --- |
-| **Sandbag Simulator** | Reroll someone's current pick hand (once per game) |
-| **Thief** | Steal one card from another player (once per game) |
+| **Sandbag Simulator** | Reroll someone's cards (once per game). The pick waits until you choose. |
+| **Thief** | Steal one card from another player (once per game). Only you can use the prompt. |
 
 ## Unique
 

@@ -24,7 +24,7 @@ namespace LeanAndMeanCards
     {
         public const string ModId = "com.ljindustries.rounds.leanandmeancards";
         public const string ModName = "Lean and Mean Cards";
-        public const string Version = "1.2.3";
+        public const string Version = "1.2.4";
         public const string ModInitials = "LMC";
         public const string CardsMenuName = "LeanAndMeanCards";
 
@@ -101,6 +101,7 @@ namespace LeanAndMeanCards
         {
             StealLedger.ResetForNewGame();
             SandbagManager.ResetForNewGame();
+            PickUiHold.Reset();
             CurseOnlyPlayers.InvalidateTargets();
             CurseOnlyPlayers.ResetCache();
             DraftSniperManager.ResetForNewGame();
@@ -123,12 +124,14 @@ namespace LeanAndMeanCards
 
         private static System.Collections.IEnumerator OnPlayerPickEnd(IGameModeHandler gm)
         {
+            while (PickUiHold.ShouldWait) yield return null;
             DraftSniperManager.ResetForPick();
             yield break;
         }
 
         private static System.Collections.IEnumerator OnPickEnd(IGameModeHandler gm)
         {
+            while (PickUiHold.ShouldWait) yield return null;
             DraftSniperManager.ResetForPick();
             PickPhase.ClearActingPicker();
             yield break;
