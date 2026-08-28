@@ -1,19 +1,15 @@
 using System.Collections.Generic;
-using System.Reflection;
-using HarmonyLib;
 using LeanAndMeanCards.Cards;
 using Photon.Pun;
 using UnboundLib;
 using UnboundLib.Networking;
 using UnityEngine;
-using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 namespace LeanAndMeanCards.Utils
 {
     internal static class DraftSniperManager
     {
-        private static readonly FieldInfo IsHoveredField = AccessTools.Field(typeof(CardVisuals), "isHovered");
         private static readonly HashSet<int> BlockedViews = new HashSet<int>();
         private static readonly Dictionary<int, int> UsesConsumed = new Dictionary<int, int>();
 
@@ -37,6 +33,7 @@ namespace LeanAndMeanCards.Utils
             _clickLockUntil = 0f;
             _hintHandKey = int.MinValue;
             _lockedClickToastUntil = 0f;
+            DraftSniperLockUi.Clear();
         }
 
         internal static int CountOwned(Player player)
@@ -91,8 +88,8 @@ namespace LeanAndMeanCards.Utils
             if (left <= 0) return;
 
             var extra = left == 1
-                ? "Click a card during someone else's pick to lock it."
-                : $"Stacked. {left} locks ready. Click a card during someone else's pick.";
+                ? "During someone else's pick, hit the LOCK button under a card."
+                : $"Stacked. {left} locks ready — hit LOCK under a card during someone else's pick.";
             PlayerNotice.Show(player, extra);
         }
 
@@ -101,24 +98,44 @@ namespace LeanAndMeanCards.Utils
             if (CardChoice.instance == null || !CardChoice.instance.IsPicking)
             {
                 _hintHandKey = int.MinValue;
+                DraftSniperLockUi.Clear();
                 return;
             }
 
             var local = LocalPlayerUtil.LocalPlayer();
-            if (!CanLocalSnipe(local)) return;
-            MaybeHint(local);
+            if (!CanLocalSnipe(local))
+            {
+                DraftSniperLockUi.Clear();
+                return;
+            }
 
-            if (Time.unscaledTime < _clickLockUntil) return;
-            if (!Input.GetMouseButtonDown(0)) return;
-            if (IsPointerOverUi()) return;
+            var offered = PickPhase.GetReadySpawnedCards();
+            DraftSniperLockUi.Sync(offered, Remaining(local));
+            MaybeHint(local, offered);
+        }
 
-            var card = CardUnderCursor();
-            if (card == null || IsBlocked(card)) return;
+        /// <summary>
+        /// Raised by a card's own LOCK button. Returns true when the request went out, so
+        /// the button knows to show its pending state.
+        ///
+        /// The conditions are re-checked here rather than trusted from the button: a hand
+        /// can be picked, replaced or rerolled between the frame that drew the button and
+        /// the frame the click lands on.
+        /// </summary>
+        internal static bool TryLock(GameObject card)
+        {
+            if (card == null || IsBlocked(card)) return false;
+            if (Time.unscaledTime < _clickLockUntil) return false;
+
+            var local = LocalPlayerUtil.LocalPlayer();
+            if (!CanLocalSnipe(local)) return false;
+
             var view = card.GetComponent<PhotonView>();
-            if (view == null || view.ViewID == 0) return;
+            if (view == null || view.ViewID == 0) return false;
 
             _clickLockUntil = Time.unscaledTime + 0.35f;
             NetworkingManager.RPC(typeof(DraftSniperManager), nameof(RPCA_BanCard), local.playerID, view.ViewID);
+            return true;
         }
 
         [UnboundRPC]
@@ -282,9 +299,8 @@ namespace LeanAndMeanCards.Utils
             }
         }
 
-        private static void MaybeHint(Player local)
+        private static void MaybeHint(Player local, List<GameObject> spawned)
         {
-            var spawned = PickPhase.GetReadySpawnedCards();
             if (spawned == null || spawned.Count == 0) return;
             var key = spawned.Count;
             foreach (var go in spawned)
@@ -296,54 +312,8 @@ namespace LeanAndMeanCards.Utils
             _hintHandKey = key;
             var left = Remaining(local);
             CardTargetUi.ShowToast(left == 1
-                ? "Draft Sniper: click a card to lock it."
-                : $"Draft Sniper: click a card to lock it ({left} left).");
-        }
-
-        private static GameObject CardUnderCursor()
-        {
-            var spawned = PickPhase.GetReadySpawnedCards();
-            if (spawned == null) return null;
-
-            foreach (var go in spawned)
-            {
-                if (go == null) continue;
-                var visuals = go.GetComponentInChildren<CardVisuals>(true);
-                if (visuals == null || IsHoveredField == null) continue;
-                try
-                {
-                    if (IsHoveredField.GetValue(visuals) is true) return go;
-                }
-                catch
-                {
-                    // hover flag layout changed
-                }
-            }
-
-            var cam = Camera.main;
-            if (cam == null) return null;
-
-            GameObject best = null;
-            var bestDist = 160f;
-            var mouse = (Vector2)Input.mousePosition;
-            foreach (var go in spawned)
-            {
-                if (go == null) continue;
-                var screen = cam.WorldToScreenPoint(go.transform.position);
-                if (screen.z < 0f) continue;
-                var dist = Vector2.Distance(mouse, new Vector2(screen.x, screen.y));
-                if (dist >= bestDist) continue;
-                bestDist = dist;
-                best = go;
-            }
-
-            return best;
-        }
-
-        private static bool IsPointerOverUi()
-        {
-            if (EventSystem.current == null) return false;
-            return EventSystem.current.IsPointerOverGameObject();
+                ? "Draft Sniper: hit LOCK under a card to take it off the table."
+                : $"Draft Sniper: hit LOCK under a card to take it off the table ({left} left).");
         }
 
         private static Player FindPlayer(int playerId)

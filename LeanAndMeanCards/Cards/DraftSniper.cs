@@ -11,7 +11,7 @@ namespace LeanAndMeanCards.Cards
         protected override string GetTitle() => Title;
 
         protected override string GetDescription() =>
-            "During someone else's pick, click a card in their offer to lock it. They can't pick that one. Extra copies give extra locks.";
+            "During someone else's pick, hit the LOCK button under a card in their offer. They can't pick that one. Extra copies give extra locks.";
 
         protected override CardInfo.Rarity GetRarity() => CardInfo.Rarity.Rare;
 

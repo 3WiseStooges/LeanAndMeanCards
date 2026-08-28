@@ -1,5 +1,59 @@
 # Changelog
 
+## 1.2.5
+
+- **TASER TASER TASER no longer re-tazes on every poison / Infernal tick.** The stun was
+  applied from a `HealthHandler.DoDamage` postfix, and `DamageOverTime.DoDamageOverTime`
+  calls `DoDamage` once per 0.25s interval with the *shooter* still set as
+  `damagingPlayer`. One POISON or Infernal bullet therefore topped the stun back up for
+  the whole burn — 219 stun applications in a single match's log. Damage-over-time ticks
+  pass `healthRemoval: true`, which the postfix now checks, so the stun lands once for the
+  hit that started the burn and never again.
+- **Stop players being tazed by shots that never hit them.** Three separate causes:
+  - The stun also fired from a `ProjectileHit.Hit` postfix. That is not a confirmed hit:
+    `RayCastTrail.Update` runs on every client and calls `Hit` from that client's own
+    prediction, before the blocked / already-hit checks decide anything, and only the
+    bullet's owner turns it into an RPC. On the host, a mis-predicted local raycast then
+    *broadcast* the phantom stun to everyone. The taser now applies only from
+    `RPCA_DoHit` — the hit the shooter actually confirmed — and only when the shot was not
+    blocked.
+  - `ApplyStun` wrote `data.stunTime` directly and then reflected into the private
+    `StunHandler.StartStun()`. That skipped the block check `AddStun` performs, zeroed the
+    victim's velocity, and played the stun animation even on frames where `AddStun` had
+    declined — a dazzle with no stun behind it. It now goes through `AddStun` alone.
+  - The dedupe window was 0.2s against a 0.5s stun, so a burst kept re-upping it. The
+    window is now the stun's own length.
+- The taser no longer sends its own RPC. Both remaining call sites already run on every
+  client for the same event (`RPCA_SendTakeDamage` and `RPCA_DoHit` are both
+  `RpcTarget.All`), so the RPC only added a second, differently-timed copy of a stun that
+  was already replicated. The dead `Gun.ApplyProjectileStats` hook that added to
+  `ProjectileHit.stun` is gone too — nothing in the game reads that field.
+- **Draft Sniper now has a LOCK button under each offered card.** It used to listen for a
+  bare left click anywhere near a card, which raced the picker: locks landed after the card
+  had already been taken, so the sniper got a "pick another" prompt for a pick that was
+  over. Each offered card now carries its own button, drawn on the sniper's client only,
+  that exists solely while the offer is live and reports its own state (`LOCK`,
+  `LOCKING...`, `LOCKED`).
+- **Fix Draft Sniper ending the picker's turn.** `CardChoice.DoPlayerSelect` runs
+  `Pick(card); pickrID = -1;` without checking whether `Pick` did anything, and
+  `CardChoice.Update` stops calling `DoPlayerSelect` once `pickrID` is -1. Cancelling a
+  locked pick therefore retired the picker and left them staring at a hand they could no
+  longer select from. The picker id is now restored after a cancelled pick.
+- **Un-stick bullets that Target BOUNCE parked.** 1.2.1 stopped blasts flattening bounce
+  shots, but the card has a second way to lose a bullet's speed that is all its own:
+  `BounceEffectRetarget` switches the bullet off on contact and relies on the owner
+  returning a new velocity 0.1s later over `ChildRPC`, with no fallback if that message
+  never lands — the reported match's log is full of it being dropped ("Received RPC
+  RPCA_RecieveFunction ... this PhotonView does not exist"). It also aims with
+  `direction * move.velocity.magnitude`, so a zeroed magnitude resumes the bullet at a
+  standstill. A watchdog now restores the plain reflected velocity if the bullet is still
+  stopped well past the vanilla release point.
+- Dynamite's blast no longer gives up on the rest of the scene when one map object throws.
+  Map mods ship `NetworkPhysicsObject`s with no `PhotonView` — the same ones filling the
+  log with their own `OnCollisionEnter2D` null references — and `RequestOwnership` throws
+  on those. A single shared `try` around the whole loop meant the first bad object
+  cancelled the knockback for every crate after it.
+
 ## 1.2.4
 
 - Silver Egg no longer toasts when you pick it or when it hatches. Hatch still
