@@ -19,10 +19,14 @@ namespace LeanAndMeanCards.Utils
     {
         private static readonly FieldInfo PickerTypeField = AccessTools.Field(typeof(CardChoice), "pickerType");
         private static readonly FieldInfo SpawnedCardsField = AccessTools.Field(typeof(CardChoice), "spawnedCards");
+        private static readonly FieldInfo ChildrenField = AccessTools.Field(typeof(CardChoice), "children");
+
+        private static readonly List<GameObject> Discovered = new List<GameObject>();
 
         private static int _actingPickerId = -1;
         private static int _lastSpawnCount;
         private static float _spawnStableSince;
+        private static float _nextDiscoverScan;
 
         internal static void NoteActingPicker(int pickerId) => _actingPickerId = pickerId;
 
@@ -31,6 +35,8 @@ namespace LeanAndMeanCards.Utils
             _actingPickerId = -1;
             _lastSpawnCount = 0;
             _spawnStableSince = 0f;
+            _nextDiscoverScan = 0f;
+            Discovered.Clear();
         }
 
         internal static Player GetCurrentPicker()
@@ -81,22 +87,148 @@ namespace LeanAndMeanCards.Utils
             return SpawnedCardsField?.GetValue(choice) as List<GameObject>;
         }
 
-        internal static List<GameObject> GetReadySpawnedCards()
+        /// <summary>
+        /// The cards currently on the table, on any client.
+        ///
+        /// CardChoice.spawnedCards is NOT a view of the offer for most of the lobby. Only the
+        /// picker fills it, in ReplaceCards, because Pick gates that call on the picker's own
+        /// view being IsMine. Every other client's list stays empty until RPCA_DoEndPick
+        /// back-fills it from CardIDs() - and that RPC fires at the instant a card is chosen.
+        /// So anything driven off spawnedCards is, for a spectator, blank for the whole pick
+        /// and populated the moment the pick is over.
+        ///
+        /// The card objects themselves are network-wide the entire time: SpawnUniqueCard goes
+        /// through PhotonNetwork.Instantiate, at CardChoice's own child anchors. That is what
+        /// this reads instead, so spectators see the live offer while it is still live.
+        /// </summary>
+        internal static List<GameObject> GetOfferedCards()
         {
-            var spawned = GetSpawnedCards();
-            if (spawned == null) return null;
+            var ready = LiveOffer(GetSpawnedCards());
+            if (ready.Count > 0) return ready;
+            return DiscoverOfferFromAnchors();
+        }
 
+        private static List<GameObject> LiveOffer(List<GameObject> source)
+        {
             var ready = new List<GameObject>();
-            foreach (var go in spawned)
+            if (source == null) return ready;
+
+            foreach (var go in source)
             {
-                if (go == null) continue;
-                if (go.GetComponent<CardInfo>() == null) continue;
-                var view = go.GetComponent<PhotonView>();
-                if (view != null && view.ViewID == 0) continue;
+                if (!IsLiveOfferCard(go)) continue;
                 ready.Add(go);
             }
 
             return ready;
+        }
+
+        private static bool IsLiveOfferCard(GameObject go)
+        {
+            if (go == null) return false;
+            if (go.GetComponent<CardInfo>() == null) return false;
+            var view = go.GetComponent<PhotonView>();
+            if (view == null || view.ViewID == 0) return false;
+
+            // Cards flung away by a finished pick are on their way out, not on offer.
+            return go.GetComponent<RemoveAfterSeconds>() == null;
+        }
+
+        /// <summary>
+        /// Finds the offer by looking at the anchors it was dealt onto. A full scene scan is
+        /// too expensive for Update, so results are cached until a card dies or the interval
+        /// lapses.
+        /// </summary>
+        private static List<GameObject> DiscoverOfferFromAnchors()
+        {
+            // "Nothing found" is a result worth caching too - testing for liveness instead
+            // would treat the empty list as a stale one and rescan the scene every frame.
+            if (Time.unscaledTime < _nextDiscoverScan && !AnyDied(Discovered))
+            {
+                return new List<GameObject>(Discovered);
+            }
+
+            _nextDiscoverScan = Time.unscaledTime + 0.2f;
+            Discovered.Clear();
+
+            var choice = CardChoice.instance;
+            if (choice == null || !choice.IsPicking) return new List<GameObject>();
+
+            var anchors = ChildrenField?.GetValue(choice) as Transform[];
+            if (anchors == null || anchors.Length == 0) return new List<GameObject>();
+
+            var radius = AnchorRadius(anchors);
+            var candidates = Object.FindObjectsOfType<CardInfo>();
+
+            // Anchor order is the offer's own left-to-right order, and matches the theInt
+            // each card was tagged with on the picker's client.
+            foreach (var anchor in anchors)
+            {
+                if (anchor == null) continue;
+
+                GameObject best = null;
+                var bestDistance = radius;
+
+                foreach (var info in candidates)
+                {
+                    if (info == null) continue;
+                    var go = info.gameObject;
+
+                    // Card bar entries and hover previews sit under a Canvas. The test walks
+                    // up from the PARENT, never the card itself - a card prefab carries its
+                    // own world-space Canvas, so testing the object would reject every card
+                    // on the table. Vanilla leaves offered cards as scene roots, but Pick N
+                    // Cards and Pick Phase Improvements are both in this pack's usual load
+                    // order, so being a root is not required - only being parked on an anchor.
+                    var parent = go.transform.parent;
+                    if (parent != null && parent.GetComponentInParent<Canvas>() != null) continue;
+                    if (!IsLiveOfferCard(go)) continue;
+                    if (Discovered.Contains(go)) continue;
+
+                    var distance = Vector3.Distance(go.transform.position, anchor.position);
+                    if (distance > bestDistance) continue;
+                    bestDistance = distance;
+                    best = go;
+                }
+
+                if (best != null) Discovered.Add(best);
+            }
+
+            return new List<GameObject>(Discovered);
+        }
+
+        /// <summary>
+        /// Half the tightest anchor spacing, so a card can never be claimed by its neighbour's
+        /// slot however the pick rig is laid out or scaled.
+        /// </summary>
+        private static float AnchorRadius(Transform[] anchors)
+        {
+            var closest = float.MaxValue;
+            for (var i = 0; i < anchors.Length; i++)
+            {
+                if (anchors[i] == null) continue;
+                for (var j = i + 1; j < anchors.Length; j++)
+                {
+                    if (anchors[j] == null) continue;
+                    var distance = Vector3.Distance(anchors[i].position, anchors[j].position);
+                    if (distance > 0.01f && distance < closest) closest = distance;
+                }
+            }
+
+            return closest == float.MaxValue ? 5f : closest * 0.5f;
+        }
+
+        /// <summary>
+        /// True when a card the last scan found has since been destroyed, which retires the
+        /// cache early. An empty cache has nothing to lose and so is never stale.
+        /// </summary>
+        private static bool AnyDied(List<GameObject> cards)
+        {
+            foreach (var go in cards)
+            {
+                if (go == null) return true;
+            }
+
+            return false;
         }
 
         /// <summary>
@@ -106,20 +238,7 @@ namespace LeanAndMeanCards.Utils
         /// </summary>
         internal static bool IsOfferedHandReady()
         {
-            var spawned = GetSpawnedCards();
-            if (spawned == null || spawned.Count == 0)
-            {
-                _lastSpawnCount = 0;
-                return false;
-            }
-
-            // Drop destroyed Photon stubs so a wiped hand is not treated as "ready".
-            var alive = 0;
-            for (var i = 0; i < spawned.Count; i++)
-            {
-                if (spawned[i] != null) alive++;
-            }
-
+            var alive = GetOfferedCards().Count;
             if (alive == 0)
             {
                 _lastSpawnCount = 0;

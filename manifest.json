@@ -1,6 +1,6 @@
 {
   "name": "LeanAndMeanCards",
-  "version_number": "1.2.5",
+  "version_number": "1.2.6",
   "website_url": "https://github.com/3WiseStooges/LeanAndMeanCards",
   "description": "Fifteen cards: knockback, stuns, delayed blasts, a hatching Silver Egg, and a few that mess with someone else's pick.",
   "dependencies": [

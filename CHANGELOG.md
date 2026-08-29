@@ -1,6 +1,30 @@
 # Changelog
 
-## 1.2.5
+## 1.2.6
+
+- **Draft Sniper's LOCK buttons now exist during the pick they are meant to affect.**
+  They were driven off `CardChoice.spawnedCards`, which is not a view of the offer for
+  anyone except the picker: `Pick` gates `ReplaceCards` on the picker's own view being
+  `IsMine`, so every other client's list stays empty until `RPCA_DoEndPick` back-fills it
+  — and that RPC fires at the instant a card is chosen. The sniper is by definition not
+  the picker, so the buttons were structurally impossible to show while the offer was
+  live and appeared exactly when it stopped mattering. The card objects themselves are
+  network-wide the whole time (`SpawnUniqueCard` goes through `PhotonNetwork.Instantiate`
+  onto `CardChoice`'s own anchors), so `PickPhase.GetOfferedCards()` reads those instead
+  and falls back to `spawnedCards` only when it is actually populated.
+- **Locks are no longer rejected in lobbies where the host is not the picker.** The
+  host-side `IsInOfferedHand` check in `RPCA_BanCard` read `spawnedCards` too, so it
+  answered "That card is gone." for every lock in exactly the situation the card exists
+  for.
+- **A throwing `IDoEndPick` no longer takes the lobby with it.** `HoldEndPickPatch` pumps
+  the original coroutine by hand with `while (original.MoveNext())`, which made this the
+  one place any mod's end-of-pick work could fail — and a throw there means the next hand
+  is never dealt. `MoveNext` is guarded now, and a broken pump completes the handoff
+  itself, with `isPlaying` as the interlock against dealing two hands.
+- Bounded the pick hold at 8s. `while (PickUiHold.ShouldWait)` was unbounded against an
+  RPC-driven counter, so a dropped `Pop` was the same silent "nobody can pick" stall.
+- `thunderstore.toml` was still on 1.2.4 after the 1.2.5 release; it tracks the real
+  version again.
 
 - **TASER TASER TASER no longer re-tazes on every poison / Infernal tick.** The stun was
   applied from a `HealthHandler.DoDamage` postfix, and `DamageOverTime.DoDamageOverTime`

@@ -109,7 +109,7 @@ namespace LeanAndMeanCards.Utils
                 return;
             }
 
-            var offered = PickPhase.GetReadySpawnedCards();
+            var offered = PickPhase.GetOfferedCards();
             DraftSniperLockUi.Sync(offered, Remaining(local));
             MaybeHint(local, offered);
         }
@@ -246,15 +246,22 @@ namespace LeanAndMeanCards.Utils
             return a != null && b != null && a.teamID == b.teamID;
         }
 
+        /// <summary>
+        /// Host-side check, so it must not read spawnedCards: the host is only the picker
+        /// some of the time, and on every other client that list is empty until the pick is
+        /// already over. Validating a lock against it rejected every lock in the lobby with
+        /// "That card is gone."
+        /// </summary>
         private static bool IsInOfferedHand(GameObject card)
         {
-            var spawned = PickPhase.GetSpawnedCards();
-            return spawned != null && card != null && spawned.Contains(card);
+            if (card == null) return false;
+            var offered = PickPhase.GetOfferedCards();
+            return offered != null && offered.Contains(card);
         }
 
         private static int UnlockedReadyCount()
         {
-            var spawned = PickPhase.GetReadySpawnedCards();
+            var spawned = PickPhase.GetOfferedCards();
             if (spawned == null) return 0;
             var n = 0;
             foreach (var go in spawned)
