@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.2.7
+
+- **Silver Egg:** hatched cards now show in the top-right bar. The hatch still
+  grants the cards at round end (so the stats are real), then the bar is
+  restamped at pick / point start — that UI is torn down between rounds, which
+  is why the icons never appeared. A toast names the haul.
+- **Draft Sniper:** locking one card no longer makes the rest of the hand
+  unpickable. Vanilla `DoPlayerSelect` still set `pickrID = -1` after a blocked
+  confirm, so the picker could not select anything else.
+
 ## 1.2.4
 
 - Silver Egg no longer toasts when you pick it or when it hatches. Hatch still

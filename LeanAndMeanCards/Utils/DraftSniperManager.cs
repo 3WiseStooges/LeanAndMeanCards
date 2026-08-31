@@ -20,6 +20,8 @@ namespace LeanAndMeanCards.Utils
         private static float _clickLockUntil;
         private static int _hintHandKey = int.MinValue;
         private static float _lockedClickToastUntil;
+        private static int _heldPickerId = -1;
+        private static bool _restorePicker;
 
         internal static void ResetForNewGame()
         {
@@ -37,6 +39,8 @@ namespace LeanAndMeanCards.Utils
             _clickLockUntil = 0f;
             _hintHandKey = int.MinValue;
             _lockedClickToastUntil = 0f;
+            _heldPickerId = -1;
+            _restorePicker = false;
         }
 
         internal static int CountOwned(Player player)
@@ -64,15 +68,40 @@ namespace LeanAndMeanCards.Utils
         /// <summary>
         /// True when this specific offered card is locked.
         ///
-        /// A null card is NOT a locked card. It returns true only because callers use this
-        /// to mean "unsafe to act on", and every caller must null-check first. Never use it
-        /// to gate CardChoice.Pick, whose null argument means "build the offer".
+        /// Null is never locked — CardChoice.Pick(null) means "build the offer".
+        /// Child objects (click targets) resolve the PhotonView on a parent.
         /// </summary>
         internal static bool IsBlocked(GameObject card)
         {
-            if (card == null) return true;
-            var view = card.GetComponent<PhotonView>();
-            return view != null && BlockedViews.Contains(view.ViewID);
+            if (card == null) return false;
+            var view = card.GetComponent<PhotonView>() ?? card.GetComponentInParent<PhotonView>();
+            return view != null && view.ViewID != 0 && BlockedViews.Contains(view.ViewID);
+        }
+
+        internal static void NoteBlockedPick(CardChoice choice)
+        {
+            if (choice != null && choice.pickrID >= 0) _heldPickerId = choice.pickrID;
+            _restorePicker = true;
+        }
+
+        internal static void ClearPickerHold()
+        {
+            _restorePicker = false;
+        }
+
+        internal static void RestoreHeldPicker()
+        {
+            if (!_restorePicker) return;
+            var choice = CardChoice.instance;
+            if (choice == null || !choice.IsPicking)
+            {
+                _restorePicker = false;
+                _heldPickerId = -1;
+                return;
+            }
+
+            if (_heldPickerId >= 0 && choice.pickrID < 0)
+                choice.pickrID = _heldPickerId;
         }
 
         internal static void NotifyLockedClick()
@@ -98,6 +127,8 @@ namespace LeanAndMeanCards.Utils
 
         internal static void Tick()
         {
+            RestoreHeldPicker();
+
             if (CardChoice.instance == null || !CardChoice.instance.IsPicking)
             {
                 _hintHandKey = int.MinValue;

@@ -28,17 +28,28 @@ namespace LeanAndMeanCards.Utils
         }
 
         private static readonly List<Hatch> Pending = new List<Hatch>();
+        private static readonly List<BarDebt> PendingBar = new List<BarDebt>();
         private static bool _ignoringSilverCardRemoval;
+
+        private sealed class BarDebt
+        {
+            public int PlayerId;
+            public CardInfo Card;
+        }
 
         internal static void RegisterHooks()
         {
             GameModeManager.AddHook(GameModeHooks.HookGameStart, OnGameStart);
             GameModeManager.AddHook(GameModeHooks.HookRoundEnd, OnRoundEnd);
+            GameModeManager.AddHook(GameModeHooks.HookPickStart, OnPickStart);
+            GameModeManager.AddHook(GameModeHooks.HookPlayerPickStart, OnPlayerPickStart);
+            GameModeManager.AddHook(GameModeHooks.HookPointStart, OnPointStart);
         }
 
         internal static void ResetForNewGame()
         {
             Pending.Clear();
+            PendingBar.Clear();
             _ignoringSilverCardRemoval = false;
         }
 
@@ -140,6 +151,31 @@ namespace LeanAndMeanCards.Utils
             TickHatches();
         }
 
+        private static IEnumerator OnPickStart(IGameModeHandler gm)
+        {
+            FlushBarDebt();
+            yield break;
+        }
+
+        private static IEnumerator OnPlayerPickStart(IGameModeHandler gm)
+        {
+            FlushBarDebt();
+            if (Unbound.Instance != null)
+            {
+                Unbound.Instance.ExecuteAfterSeconds(0.25f, FlushBarDebt);
+                Unbound.Instance.ExecuteAfterSeconds(1f, FlushBarDebt);
+                Unbound.Instance.ExecuteAfterSeconds(2.5f, FlushBarDebt);
+            }
+
+            yield break;
+        }
+
+        private static IEnumerator OnPointStart(IGameModeHandler gm)
+        {
+            FlushBarDebt();
+            yield break;
+        }
+
         private static void TickHatches()
         {
             for (var i = Pending.Count - 1; i >= 0; i--)
@@ -197,15 +233,78 @@ namespace LeanAndMeanCards.Utils
                 foreach (var card in grants)
                 {
                     if (card == null) continue;
-                    CardsApi.instance.AddCardToPlayer(player, card, false, "", 0f, 0f, true);
+                    // Same 2s force-display as Golden Egg / Thief. 0,0 added the stats
+                    // but the top-right bar is torn down between rounds and never rebuilt.
+                    CardsApi.instance.AddCardToPlayer(player, card, false, "", 2f, 2f, true);
                 }
             }
+
+            RememberBarDebt(player, grants);
 
             var names = string.Join(", ", grants.Where(c => c != null).Select(c => c.cardName));
             Plugin.Instance?.Log(
                 $"Silver Egg hatched for player {playerId} ({PlayerLabels.For(player)}) -> {grants.Count} card(s): {names}");
 
+            if (player.data?.view != null && player.data.view.IsMine)
+            {
+                CardTargetUi.ShowToast(grants.Count == 0
+                    ? "Silver Egg hatched, but no cards this time."
+                    : "Silver Egg hatched: " + names);
+            }
+
             EnsureHatchedCardsOnBar(player, grants);
+        }
+
+        internal static void FlushBarDebt()
+        {
+            if (PendingBar.Count == 0) return;
+
+            for (var i = PendingBar.Count - 1; i >= 0; i--)
+            {
+                var debt = PendingBar[i];
+                var player = PickPhase.FindPlayer(debt.PlayerId);
+                if (player == null || debt.Card == null)
+                {
+                    PendingBar.RemoveAt(i);
+                    continue;
+                }
+
+                try
+                {
+                    EnsureOneOnBar(player, debt.Card);
+                }
+                catch (Exception ex)
+                {
+                    Plugin.Instance?.LogWarn($"Silver Egg bar flush skipped: {ex.Message}");
+                    continue;
+                }
+
+                var bar = CardBarUtils.instance?.PlayersCardBar(player.playerID);
+                if (bar != null && CountOnBar(bar, debt.Card) >= CountOwnedNamed(player, debt.Card)
+                    && CountOwnedNamed(player, debt.Card) > 0)
+                {
+                    PendingBar.RemoveAt(i);
+                }
+            }
+
+            try
+            {
+                CardBarMiniIcons.RestampAll();
+            }
+            catch (Exception ex)
+            {
+                Plugin.Instance?.LogWarn($"Silver Egg restamp skipped: {ex.Message}");
+            }
+        }
+
+        private static void RememberBarDebt(Player player, List<CardInfo> grants)
+        {
+            if (player == null || grants == null) return;
+            foreach (var card in grants)
+            {
+                if (card == null) continue;
+                PendingBar.Add(new BarDebt { PlayerId = player.playerID, Card = card });
+            }
         }
 
         private static void EnsureHatchedCardsOnBar(Player player, List<CardInfo> grants)
@@ -234,16 +333,41 @@ namespace LeanAndMeanCards.Utils
 
         private static void EnsureCardsOnBar(Player player, List<CardInfo> grants)
         {
-            var bar = CardBarUtils.instance?.PlayersCardBar(player.playerID);
-            if (bar == null) return;
-
             foreach (var card in grants)
             {
                 if (card == null) continue;
-                var owned = CountOwnedNamed(player, card);
-                var onBar = CountOnBar(bar, card);
-                if (onBar >= owned) continue;
+                EnsureOneOnBar(player, card);
+            }
+        }
+
+        private static void EnsureOneOnBar(Player player, CardInfo card)
+        {
+            if (player == null || card == null) return;
+            var owned = CountOwnedNamed(player, card);
+            if (owned <= 0) return;
+
+            var bar = CardBarUtils.instance?.PlayersCardBar(player.playerID);
+            if (bar != null && CountOnBar(bar, card) >= owned) return;
+
+            try
+            {
                 CardBarUtils.SilentAddToCardBar(player.playerID, card, "");
+            }
+            catch (Exception ex)
+            {
+                Plugin.Instance?.LogWarn($"Silver Egg SilentAdd skipped: {ex.Message}");
+            }
+
+            bar = CardBarUtils.instance?.PlayersCardBar(player.playerID);
+            if (bar != null && CountOnBar(bar, card) >= owned) return;
+            if (CardBarHandler.instance == null) return;
+            try
+            {
+                CardBarHandler.instance.AddCard(player.playerID, card);
+            }
+            catch (Exception ex)
+            {
+                Plugin.Instance?.LogWarn($"Silver Egg CardBarHandler.AddCard skipped: {ex.Message}");
             }
         }
 

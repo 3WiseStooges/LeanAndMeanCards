@@ -16,14 +16,19 @@ namespace LeanAndMeanCards.Patches
             // CardChoice.Pick has two jobs depending on its argument:
             //   Pick(card) — the picker confirmed that card.
             //   Pick(null) — StartPick asking for a fresh offer to be built.
-            // Only the first is a selection. Cancelling the second means ReplaceCards
-            // never runs and the pick phase comes up with no cards at all, which is
-            // exactly what happened when IsBlocked(null) returned true here.
+            // Only the first is a selection.
             if (pickedCard == null) return true;
 
             if (ExternalPickState.IsBulkCollecting) return true;
-            if (!DraftSniperManager.IsBlocked(pickedCard)) return true;
+            if (!DraftSniperManager.IsBlocked(pickedCard))
+            {
+                // A real pick is about to consume pickrID. Stop restoring it or the
+                // picker could confirm a second card during IDoEndPick.
+                DraftSniperManager.ClearPickerHold();
+                return true;
+            }
 
+            DraftSniperManager.NoteBlockedPick(CardChoice.instance);
             DraftSniperManager.NotifyLockedClick();
             return false;
         }
