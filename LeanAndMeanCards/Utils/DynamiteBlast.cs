@@ -248,9 +248,14 @@ namespace LeanAndMeanCards.Utils
             var seen = new HashSet<int>();
             var ownerData = owner != null ? owner.data : null;
 
-            try
+            // Guarded per object, not per loop. Map mods ship NetworkPhysicsObjects with no
+            // PhotonView — the same ones filling the log with NREs out of their own
+            // OnCollisionEnter2D — and RequestOwnership / RPCA_SendForce throw on those. One
+            // shared try meant the first bad object in the scene cancelled the blast for
+            // every crate after it.
+            foreach (var npo in Object.FindObjectsOfType<NetworkPhysicsObject>())
             {
-                foreach (var npo in Object.FindObjectsOfType<NetworkPhysicsObject>())
+                try
                 {
                     if (npo == null) continue;
                     if (IsProjectileBody(npo.transform)) continue;
@@ -272,9 +277,10 @@ namespace LeanAndMeanCards.Utils
 
                     if (rb != null) seen.Add(rb.GetInstanceID());
                 }
-            }
-            catch
-            {
+                catch
+                {
+                    // Skip this object, keep blasting the rest.
+                }
             }
 
             var cols = Physics2D.OverlapCircleAll(origin, Dynamite.BlastRadius);
