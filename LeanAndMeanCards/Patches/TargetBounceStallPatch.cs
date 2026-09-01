@@ -1,4 +1,6 @@
+using System.Globalization;
 using HarmonyLib;
+using LeanAndMeanCards.Utils;
 using UnityEngine;
 
 namespace LeanAndMeanCards.Patches
@@ -41,6 +43,11 @@ namespace LeanAndMeanCards.Patches
                 var watchdog = move.gameObject.GetComponent<TargetBounceWatchdog>()
                                ?? move.gameObject.AddComponent<TargetBounceWatchdog>();
                 watchdog.Arm(move, fallback);
+
+                // Incoming speed at the moment of the bounce. Compared against the
+                // watchdog's later reading this shows how much velocity the bounce lost.
+                Diag.Event("bounce.armed", "in=" + ((Vector2)move.velocity).magnitude
+                                                    .ToString("0.##", CultureInfo.InvariantCulture));
             }
             catch
             {
@@ -85,9 +92,43 @@ namespace LeanAndMeanCards.Patches
             _armed = false;
 
             var stalled = !_move.enabled;
-            var stopped = ((Vector2)_move.velocity).sqrMagnitude < StoppedSqr;
-            if (!stalled && !stopped) return;
-            if (_fallback.sqrMagnitude < StoppedSqr) return;
+            var speed = ((Vector2)_move.velocity).magnitude;
+            var stopped = speed * speed < StoppedSqr;
+
+            if (!stalled && !stopped)
+            {
+                // The bounce completed on its own. Record how much speed survived it: a
+                // healthy reflect keeps roughly the incoming magnitude, and a partial loss
+                // — the reported symptom — shows up here as a ratio well under 1 that the
+                // stalled/stopped branch below would never have caught.
+                var expected = _fallback.magnitude;
+                if (expected > 0.01f)
+                {
+                    var ratio = speed / expected;
+                    if (ratio < 0.75f)
+                    {
+                        Diag.Event(
+                            "bounce.velocityLoss",
+                            "out=" + speed.ToString("0.##", CultureInfo.InvariantCulture)
+                            + " expected=" + expected.ToString("0.##", CultureInfo.InvariantCulture)
+                            + " ratio=" + ratio.ToString("0.##", CultureInfo.InvariantCulture));
+                    }
+                    else
+                    {
+                        Diag.Count("bounce.ok");
+                    }
+                }
+
+                return;
+            }
+
+            if (_fallback.sqrMagnitude < StoppedSqr)
+            {
+                Diag.Count("bounce.noFallback");
+                return;
+            }
+
+            Diag.Event("bounce.watchdogFired", "stalled=" + stalled + " stopped=" + stopped);
 
             if (stopped) _move.velocity = _fallback;
             if (stalled) _move.enabled = true;

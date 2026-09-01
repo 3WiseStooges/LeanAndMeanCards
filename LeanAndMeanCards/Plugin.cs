@@ -80,6 +80,7 @@ namespace LeanAndMeanCards
             BozoShoesRuntime.RegisterHooks();
             DynamiteBlast.RegisterHooks();
             SilverEggManager.RegisterHooks();
+            DiagHooks.RegisterHooks();
             CardStatus.Register();
 
             Instance.ExecuteAfterSeconds(0.8f, DynamiteBlast.Warmup);
@@ -147,6 +148,8 @@ namespace LeanAndMeanCards
         public ConfigEntry<bool> SandbagOncePerGame { get; }
         public ConfigEntry<bool> SoftenCardGlow { get; }
         public ConfigEntry<string> CurseOnlySteamIds { get; }
+        public ConfigEntry<bool> Diagnostics { get; }
+        public ConfigEntry<bool> FilterProjectileImpulses { get; }
 
         public Configs(ConfigFile config)
         {
@@ -167,6 +170,19 @@ namespace LeanAndMeanCards
             CurseOnlySteamIds = config.Bind(
                 "Curse Only", "SteamIds", "76561198284769933",
                 "Comma-separated Steam64 IDs that are only ever offered curses. Empty disables it.");
+
+            Diagnostics = config.Bind(
+                "Diagnostics", "Diagnostics", false,
+                "Log suppressed physics impulses and bounce-watchdog activity to the BepInEx log. "
+                + "Enable on every peer at once when reproducing a desync, then diff the logs.");
+
+            // A/B switch for the desync hunt. True is the shipped behaviour. Setting it
+            // false on every peer makes ProjectileImpulseGuard pass through to vanilla, so a
+            // match can be played with the filter out of the picture without a rebuild.
+            FilterProjectileImpulses = config.Bind(
+                "Diagnostics", "FilterProjectileImpulses", true,
+                "Suppress Impulse forces on bullets so blasts cannot flatten bounce trajectories. "
+                + "Set false on ALL peers to test whether this filter is causing projectile desync.");
         }
     }
 
