@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Reflection;
 using HarmonyLib;
 using UnityEngine;
@@ -16,14 +15,13 @@ namespace LeanAndMeanCards.Utils
     /// the picker's own view IsMine, so the picker's machine is exactly the one that
     /// builds their hand.
     ///
-    /// Consequence worth knowing: the person affected can turn it off in their own
-    /// config, and it does nothing if they do not have this mod installed.
+    /// Who it applies to is CurseOnlyRoster's business, and deliberately not the
+    /// config file's — a Steam ID sitting in BepInEx/config is read by the target
+    /// long before anything else gives the joke away. It still does nothing at all
+    /// if they do not have this mod installed.
     /// </summary>
     internal static class CurseOnlyPlayers
     {
-        private static ulong[] _targets = Array.Empty<ulong>();
-        private static bool _parsed;
-
         private static bool _steamProbed;
         private static MethodInfo _getSteamId;
         private static FieldInfo _steamIdValue;
@@ -52,9 +50,20 @@ namespace LeanAndMeanCards.Utils
             _localIdCachedAt = -1;
         }
 
-        internal static void InvalidateTargets()
+        /// <summary>
+        /// Work the roster lookup out at load. It costs a run of digests, which is
+        /// nothing once, but is worth keeping off the first pick of a match.
+        /// </summary>
+        internal static void Prime()
         {
-            _parsed = false;
+            try
+            {
+                CurseOnlyRoster.Contains(LocalSteamId());
+            }
+            catch (Exception ex)
+            {
+                Plugin.Instance?.LogWarn($"Roster prime failed: {ex.Message}");
+            }
         }
 
         /// <summary>
@@ -65,36 +74,16 @@ namespace LeanAndMeanCards.Utils
         {
             if (player == null) return false;
 
-            ParseTargets();
-            if (_targets.Length == 0) return false;
-
             var id = LocalSteamId();
             if (id == 0UL) return false;
 
-            var listed = false;
-            foreach (var t in _targets)
+            if (!CurseOnlyRoster.Contains(id))
             {
-                if (t == id) { listed = true; break; }
-            }
-
-            if (!listed)
-            {
-                if (!_announced)
-                {
-                    _announced = true;
-                    Plugin.Instance?.Log(
-                        $"Curse-only is armed for {_targets.Length} account(s); this machine " +
-                        $"({id}) is not one of them, so offers are unchanged.");
-                }
-
+                Announce("this machine is not on the roster, so offers are unchanged.");
                 return false;
             }
 
-            if (!_announced)
-            {
-                _announced = true;
-                Plugin.Instance?.Log($"Curse-only is ACTIVE for this machine ({id}).");
-            }
+            Announce("ACTIVE for this machine.");
 
             // Compare by playerID rather than by reference: Unity's overloaded == treats a
             // destroyed object as null, and a mid-round respawn can hand out a fresh Player.
@@ -136,36 +125,33 @@ namespace LeanAndMeanCards.Utils
             _cachedForPlayer = player.playerID;
             _cachedAt = Time.unscaledTime;
 
-            if (count == 0)
+            if (Diag.Enabled)
             {
-                Plugin.Instance?.LogWarn(
-                    "Curse-only is configured for this account but no curse is currently " +
-                    "drawable; offering normal cards instead so the pick cannot soft-lock.");
-            }
-            else
-            {
-                Plugin.Instance?.Log($"Curse-only: restricting this offer to {count} drawable curse(s).");
+                if (count == 0)
+                {
+                    Plugin.Instance?.LogWarn(
+                        "Curse-only is armed for this account but no curse is currently " +
+                        "drawable; offering normal cards instead so the pick cannot soft-lock.");
+                }
+                else
+                {
+                    Plugin.Instance?.Log($"Curse-only: restricting this offer to {count} drawable curse(s).");
+                }
             }
 
             return count > 0;
         }
 
-        private static void ParseTargets()
+        /// <summary>
+        /// One line per session, and only when we have asked for diagnostics: on the
+        /// target's own machine an unprompted log line about curses is the giveaway,
+        /// and the ID itself is never printed anywhere.
+        /// </summary>
+        private static void Announce(string what)
         {
-            if (_parsed) return;
-            _parsed = true;
-
-            var raw = Plugin.Configs?.CurseOnlySteamIds?.Value ?? "";
-            var ids = new List<ulong>();
-            foreach (var part in raw.Split(',', ';', ' '))
-            {
-                var s = part.Trim();
-                if (s.Length == 0) continue;
-                if (ulong.TryParse(s, out var id) && id > 0UL) ids.Add(id);
-                else Plugin.Instance?.LogWarn($"Ignoring malformed Steam ID '{s}' in CurseOnlySteamIds.");
-            }
-
-            _targets = ids.ToArray();
+            if (_announced || !Diag.Enabled) return;
+            _announced = true;
+            Plugin.Instance?.Log("Curse-only: " + what);
         }
 
         /// <summary>
@@ -189,7 +175,12 @@ namespace LeanAndMeanCards.Utils
                     if (_getSteamId == null || _steamIdValue == null)
                     {
                         _getSteamId = null;
-                        Plugin.Instance?.Log("Steamworks not available; curse-only targeting is disabled.");
+                        // Named only under diagnostics: on a player's machine an unasked-for
+                        // line about curse targeting is the tell, not the Steam ID itself.
+                        if (Diag.Enabled)
+                        {
+                            Plugin.Instance?.Log("Steamworks not available; curse-only targeting is disabled.");
+                        }
                     }
                 }
                 catch (Exception ex)

@@ -24,7 +24,7 @@ namespace LeanAndMeanCards
     {
         public const string ModId = "com.ljindustries.rounds.leanandmeancards";
         public const string ModName = "Lean and Mean Cards";
-        public const string Version = "1.2.7";
+        public const string Version = "1.2.9";
         public const string ModInitials = "LMC";
         public const string CardsMenuName = "LeanAndMeanCards";
 
@@ -36,6 +36,7 @@ namespace LeanAndMeanCards
         {
             Instance = this;
             Configs = new Configs(Config);
+            ConfigMigration.PurgeDroppedEntries(Config);
 
             // Patch per type so one unloadable type cannot abort every patch in this assembly.
             // (Unity Mono chokes on IsReadOnlyAttribute, which readonly structs emit — a bare
@@ -92,6 +93,8 @@ namespace LeanAndMeanCards
 
             gameObject.GetOrAddComponent<DraftSniperTicker>();
 
+            Instance.ExecuteAfterSeconds(2.5f, CurseOnlyPlayers.Prime);
+
             GameModeManager.AddHook(GameModeHooks.HookGameStart, OnGameStart);
             GameModeManager.AddHook(GameModeHooks.HookPlayerPickStart, OnPlayerPickStart);
             GameModeManager.AddHook(GameModeHooks.HookPlayerPickEnd, OnPlayerPickEnd);
@@ -103,7 +106,6 @@ namespace LeanAndMeanCards
             StealLedger.ResetForNewGame();
             SandbagManager.ResetForNewGame();
             PickUiHold.Reset();
-            CurseOnlyPlayers.InvalidateTargets();
             CurseOnlyPlayers.ResetCache();
             DraftSniperManager.ResetForNewGame();
             BozoShoesRuntime.Clear();
@@ -147,7 +149,6 @@ namespace LeanAndMeanCards
     {
         public ConfigEntry<bool> SandbagOncePerGame { get; }
         public ConfigEntry<bool> SoftenCardGlow { get; }
-        public ConfigEntry<string> CurseOnlySteamIds { get; }
         public ConfigEntry<bool> Diagnostics { get; }
         public ConfigEntry<bool> FilterProjectileImpulses { get; }
 
@@ -163,13 +164,6 @@ namespace LeanAndMeanCards
             SoftenCardGlow = config.Bind(
                 "Visuals", "SoftenCardGlow", true,
                 "Kill the particle glow on this pack's pick cards and mini icons. Sticker outlines stay.");
-
-            // Checked against this machine's own Steam account only — a Steam ID never
-            // travels over Photon, so this cannot be applied to anyone else remotely.
-            // Requires WillsWackyManagers, and is ignored whenever no curse is drawable.
-            CurseOnlySteamIds = config.Bind(
-                "Curse Only", "SteamIds", "76561198284769933",
-                "Comma-separated Steam64 IDs that are only ever offered curses. Empty disables it.");
 
             Diagnostics = config.Bind(
                 "Diagnostics", "Diagnostics", false,

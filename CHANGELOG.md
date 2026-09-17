@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.2.9
+
+- Config files no longer hold on to settings this pack has stopped using. BepInEx
+  keeps a key it cannot match to a `Bind` as an orphaned entry and writes it back
+  out on every save, so a setting dropped from the code would otherwise sit in
+  everyone's config forever. Launching 1.2.9 once clears the leftovers, currently
+  the old `[Curse Only]` section.
+
+## 1.2.8
+
+- Diagnostics for the projectile-desync hunt. `[Diagnostics] Diagnostics` logs
+  suppressed physics impulses and bounce-watchdog activity to the BepInEx log:
+  enable it on every peer at once when reproducing a desync, then diff the logs.
+  `[Diagnostics] FilterProjectileImpulses` is the A/B switch — true is the shipped
+  behaviour, and false on every peer plays a match with the impulse filter out of
+  the picture.
+
 ## 1.2.7
 
 - **Silver Egg:** hatched cards now show in the top-right bar. The hatch still

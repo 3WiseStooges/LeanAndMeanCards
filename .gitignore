@@ -5,3 +5,7 @@ build/
 *.suo
 .vs/
 .idea/
+
+# Plaintext curse-only roster. Never committed: tools/curse-only.py keeps it,
+# and only the digests in CurseOnlyRoster.cs are allowed into the repo.
+tools/curse-only.local.txt
