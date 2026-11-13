@@ -31,13 +31,13 @@ namespace LeanAndMeanCards.Patches
         private static void Postfix(HealthHandler __instance, Player damagingPlayer, bool healthRemoval)
         {
             if (healthRemoval) return;
-            TryTaserStun(__instance, damagingPlayer);
+            TryTaserStun(__instance, damagingPlayer, "damage");
         }
 
         internal static void TryBozoMark(HealthHandler health, Player damagingPlayer, bool network = true)
         {
             if (damagingPlayer == null || health == null) return;
-            var victim = health.GetComponentInParent<Player>();
+            var victim = ResolvePlayer(health);
             if (victim == null || victim.playerID == damagingPlayer.playerID) return;
             if (!CardOwnership.Has(damagingPlayer, BozoShoes.Card)) return;
 
@@ -55,14 +55,56 @@ namespace LeanAndMeanCards.Patches
         /// through RPCA_SendTakeDamage (RpcTarget.All) and RPCA_DoHit is itself an
         /// RpcTarget.All call — so the extra RPC only added a second, differently-timed
         /// application of a stun that was already replicated.
+        ///
+        /// The stun belongs to whoever *dealt* the damage, so there are exactly two ways it
+        /// can land: the damage is credited to a taser owner, and the victim is somebody
+        /// else. Everything else is not a taser hit and must not stun — an opponent's
+        /// bullet, an opponent's explosion, a map hazard, and above all any damage an owner
+        /// ends up crediting to themselves.
+        ///
+        /// That last family is not hypothetical and is not rare. KeysCards' Spellbound hands
+        /// the victim a HexDebuffMono whose Update burns their health once a second with
+        /// `TakeDamage(dmg, pos, null, player, ...)` — the victim passed as damagingPlayer.
+        /// Six ticks of that on a taser owner read as six hits the owner landed on
+        /// themselves, so an opponent holding no stun card at all kept the owner stunned
+        /// with ordinary bullets.
+        ///
+        /// Demonic Pact is the same bug on another trigger: RootDemonicCards'
+        /// PainfullAttacks is a DealtDamageEffect, which vanilla runs from inside DoDamage,
+        /// and it mirrors the damage back with the owner as both victim and damagingPlayer
+        /// — so landing a hit tazed the owner through their own pact. Reflected and homing
+        /// shots of one's own and out-of-bounds kills land the same way, so the rule is the
+        /// guard, not a list of sources.
         /// </summary>
-        internal static bool TryTaserStun(HealthHandler health, Player damagingPlayer)
+        internal static bool TryTaserStun(HealthHandler health, Player damagingPlayer, string source)
         {
             if (damagingPlayer == null || health == null) return false;
-            var victim = health.GetComponentInParent<Player>();
+            var victim = ResolvePlayer(health);
             if (victim == null) return false;
             if (!CardOwnership.Has(damagingPlayer, TaserTaserTaser.Card)) return false;
-            return ApplyStun(victim);
+
+            // Ownership is checked first so this log only ever fires for an owner's own
+            // damage, not for every chip of self-damage in the lobby.
+            if (victim.playerID == damagingPlayer.playerID)
+            {
+                TaserStunGate.LogSuppressedSelf(victim.playerID, source);
+                return false;
+            }
+
+            return ApplyStun(victim, damagingPlayer.playerID, source);
+        }
+
+        /// <summary>
+        /// HealthHandler.data is private, so the victim comes from CharacterData.player
+        /// where it is reachable and from the transform hierarchy otherwise. CharacterData
+        /// is the authoritative link; GetComponentInParent&lt;Player&gt; alone would walk up
+        /// past the player root if a hit collider is ever reparented.
+        /// </summary>
+        private static Player ResolvePlayer(HealthHandler health)
+        {
+            var data = health.GetComponent<CharacterData>() ?? health.GetComponentInParent<CharacterData>();
+            if (data != null && data.player != null) return data.player;
+            return health.GetComponentInParent<Player>();
         }
 
         /// <summary>
@@ -88,7 +130,7 @@ namespace LeanAndMeanCards.Patches
         /// AddStun had declined. That forced animation is the "tazed without being shot"
         /// flash.
         /// </summary>
-        internal static bool ApplyStun(Player victim)
+        internal static bool ApplyStun(Player victim, int shooterId, string source)
         {
             if (victim?.data == null) return false;
             if (victim.data.dead || !victim.data.isPlaying) return false;
@@ -100,7 +142,7 @@ namespace LeanAndMeanCards.Patches
             TaserStunGate.Mark(victim.playerID);
             stun.AddStun(TaserTaserTaser.ExtraStunSeconds);
 
-            TaserStunGate.Log(victim.playerID);
+            TaserStunGate.Log(shooterId, victim.playerID, source);
             return true;
         }
 
@@ -123,18 +165,36 @@ namespace LeanAndMeanCards.Patches
     {
         private static readonly Dictionary<int, float> Times = new Dictionary<int, float>();
         private static float _lastLog;
+        private static string _lastKey;
+        private static float _lastSelfLog;
 
         internal static bool WasRecent(int playerId) =>
             Times.TryGetValue(playerId, out var t) && Time.time - t < TaserTaserTaser.ExtraStunSeconds;
 
         internal static void Mark(int playerId) => Times[playerId] = Time.time;
 
-        // 219 identical lines in one match is not a log, it is noise.
-        internal static void Log(int playerId)
+        /// <summary>
+        /// 219 identical lines in one match is not a log, it is noise — but a line naming
+        /// only the victim cannot tell an owner's hit from anybody else's, which is the one
+        /// thing a report of "the other player's shots tazed me" needs to settle. The line
+        /// names both sides and the path it arrived through, and the 1s throttle resets the
+        /// moment any of the three changes.
+        /// </summary>
+        internal static void Log(int shooterId, int victimId, string source)
         {
-            if (Time.time - _lastLog < 1f) return;
+            var key = shooterId + ">" + victimId + ":" + source;
+            if (key == _lastKey && Time.time - _lastLog < 1f) return;
+            _lastKey = key;
             _lastLog = Time.time;
-            Plugin.Instance?.Log($"TASER stun player={playerId}");
+            Plugin.Instance?.Log($"TASER stun shooter={shooterId} victim={victimId} src={source}");
+        }
+
+        // Rare by design: it only fires when an owner's own damage came back to them.
+        internal static void LogSuppressedSelf(int playerId, string source)
+        {
+            if (Time.time - _lastSelfLog < 2f) return;
+            _lastSelfLog = Time.time;
+            Plugin.Instance?.Log($"TASER self-stun suppressed player={playerId} src={source}");
         }
     }
 
@@ -194,7 +254,7 @@ namespace LeanAndMeanCards.Patches
                              ?? view.GetComponentInParent<HealthHandler>();
                 if (health == null) return;
                 CombatEffectPatch.TryBozoMark(health, __instance.ownPlayer, network: false);
-                CombatEffectPatch.TryTaserStun(health, __instance.ownPlayer);
+                CombatEffectPatch.TryTaserStun(health, __instance.ownPlayer, "hit");
             }
             catch
             {

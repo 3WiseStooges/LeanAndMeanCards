@@ -12,7 +12,7 @@ namespace LeanAndMeanCards.Cards
         protected override string GetTitle() => Title;
 
         protected override string GetDescription() =>
-            "Hits stun the target for 0.5 seconds, including catching your own shot. 15% faster fire. -1 ammo.";
+            "Your hits stun the target for 0.5 seconds. 15% faster fire. -1 ammo.";
 
         protected override CardInfo.Rarity GetRarity() => CardInfo.Rarity.Rare;
 

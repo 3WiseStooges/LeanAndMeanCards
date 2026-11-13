@@ -1,5 +1,44 @@
 # Changelog
 
+## 1.2.10
+
+- **TASER TASER TASER no longer tazes its own holder, and only the holder's hits taze.**
+  Root cause, traced through a match log: KeysCards' **Spellbound** ("your bullets apply 3
+  Hex") puts a `HexDebuffMono` on whoever the shot hits, and that component burns the
+  victim's health once a second for six ticks with
+  `healthHandler.TakeDamage(dmg, pos, null, player, ...)` — passing **the victim as
+  `damagingPlayer`**. The taser keyed purely off who the damage was credited to, so every
+  hex tick on a taser owner read as that owner landing a hit on themselves and stunned
+  them: 0.5s of stun a second for six seconds, re-upped by the opponent's next hex shot.
+  The opponent needed no stun card of their own, which is exactly how it was reported —
+  their bullets alone, and nothing in their deck to explain it.
+
+  The tick does not come through `DamageOverTime`, so the `healthRemoval` guard added in
+  1.2.7 never saw it. The stun now requires the damage to be credited to a taser owner
+  *and* the victim to be somebody else.
+
+  Demonic Pact is the same bug on a second trigger, also confirmed in the assembly:
+  `RootDemonicCards.PainfullAttacks` is a `DealtDamageEffect`, so vanilla runs it from
+  inside `DoDamage` (`damagingPlayer.GetComponent<CharacterStatModifiers>().DealtDamage`),
+  and it mirrors the damage with
+  `healthHandler.DoDamage(damage, pos, magenta, null, self, false, true, true)` — the owner
+  as both victim and `damagingPlayer`. So landing a hit tazed the owner through their own
+  pact, once per hit, which against TASER's own +15% fire rate is near-permanent stun while
+  shooting. The guard closes that, and the rest of the family with it: a reflected or homing
+  shot of the owner's own, a blast of their own they stood in, an out-of-bounds kill
+  credited to the player falling out. The card text no longer promises the old self-stun
+  ("including catching your own shot").
+
+  Bozo Shoes was never exposed — it has had the same-player check since 1.1.0.
+- The stun's log line names both sides and the path it came through — `TASER stun shooter=1
+  victim=0 src=hit` instead of `TASER stun player=0`. A line naming only the victim cannot
+  tell an owner's hit from anybody else's, which was the one thing needed to settle this
+  from a log. A suppressed self-stun logs too, at most once every 2s, so a repeat of this
+  shape is one grep away.
+- Both effects resolve the victim through `CharacterData.player` rather than walking the
+  transform parents for a `Player`, so a reparented hit collider cannot credit the stun or
+  the Bozo mark to the wrong player.
+
 ## 1.2.9
 
 - Config files no longer hold on to settings this pack has stopped using. BepInEx
