@@ -69,6 +69,10 @@ namespace LeanAndMeanCards.Utils
             if (string.Equals(name, Takebacksies.Title, StringComparison.OrdinalIgnoreCase)) return true;
             if (string.Equals(name, SandbagSimulator.Title, StringComparison.OrdinalIgnoreCase)) return true;
             if (string.Equals(name, JarOfDirt.Title, StringComparison.OrdinalIgnoreCase)) return true;
+            // A stolen copy card would open its chooser on the thief's client in the middle
+            // of the steal, and Clone's ledger is keyed to the player who registered it.
+            if (string.Equals(name, Duplicate.Title, StringComparison.OrdinalIgnoreCase)) return true;
+            if (string.Equals(name, Clone.Title, StringComparison.OrdinalIgnoreCase)) return true;
             // Owned by MulliganMadness when installed; matched by name so this pack stays standalone.
             if (string.Equals(name, "Return to Sender", StringComparison.OrdinalIgnoreCase)) return true;
 

@@ -24,7 +24,7 @@ namespace LeanAndMeanCards
     {
         public const string ModId = "com.ljindustries.rounds.leanandmeancards";
         public const string ModName = "Lean and Mean Cards";
-        public const string Version = "1.2.9";
+        public const string Version = "1.3.0";
         public const string ModInitials = "LMC";
         public const string CardsMenuName = "LeanAndMeanCards";
 
@@ -81,6 +81,7 @@ namespace LeanAndMeanCards
             BozoShoesRuntime.RegisterHooks();
             DynamiteBlast.RegisterHooks();
             SilverEggManager.RegisterHooks();
+            CardCopyManager.RegisterHooks();
             DiagHooks.RegisterHooks();
             CardStatus.Register();
 
@@ -110,6 +111,7 @@ namespace LeanAndMeanCards
             DraftSniperManager.ResetForNewGame();
             BozoShoesRuntime.Clear();
             SilverEggManager.ResetForNewGame();
+            CardCopyManager.ResetForNewGame();
             SafetyNetEscape.Reset();
             yield break;
         }
@@ -119,6 +121,7 @@ namespace LeanAndMeanCards
             DraftSniperManager.ResetForPick();
             CurseOnlyPlayers.ResetCache();
             StealLedger.TryOpenDeferredThiefPrompt();
+            CardCopyManager.OnPlayerPickStart();
             CardBarMiniIcons.RestampAll();
             Instance.ExecuteAfterSeconds(0.25f, CardBarMiniIcons.RestampAll);
             Instance.ExecuteAfterSeconds(1f, CardBarMiniIcons.RestampAll);

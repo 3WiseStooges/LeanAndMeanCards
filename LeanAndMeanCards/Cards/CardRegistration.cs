@@ -24,6 +24,8 @@ namespace LeanAndMeanCards.Cards
             Bind<Dynamite>(info => Dynamite.Card = info);
             Bind<TaserTaserTaser>(info => TaserTaserTaser.Card = info);
             Bind<SafetyNet>(info => SafetyNet.Card = info);
+            Bind<Duplicate>(info => Duplicate.Card = info);
+            Bind<Clone>(info => Clone.Card = info);
         }
 
         private static void Bind<T>(Action<CardInfo> setStatic) where T : CustomCard

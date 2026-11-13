@@ -1,5 +1,47 @@
 # Changelog
 
+## 1.3.0
+
+- **Two new cards that copy what you already have: Duplicate (rare) and Clone (legendary).**
+  Both open a chooser over your own hand on your client only, and both hold the pick for the
+  lobby while it is up, the way Thief and Sandbag do. Duplicate puts a second copy of the card
+  you choose straight into your hand. Clone does that too, and then hands you another copy of
+  the same card at the end of every round for the rest of the game.
+- Neither card will copy the other, a Unique card, a curse, or a card whose whole effect is a
+  one-shot prompt — Thief, Sandbag Simulator, Jar of Dirt and Return to Sender all track their
+  use per player, so a second copy of one is a dead card. The chooser lists everything in your
+  hand and writes the reason next to whatever it will not take. Thief cannot steal Duplicate or
+  Clone either: a stolen copy card would pop its chooser on the thief's client in the middle of
+  the steal, and Clone's target is tied to the player who chose it.
+- Closing the chooser with **Later** costs nothing. How much a player is owed is derived from
+  live state — Duplicates held minus Duplicates spent, Clones held minus Clones registered —
+  rather than from a queue, so the prompt simply comes back at the next pick. The same
+  arithmetic makes a double `ApplyStats` (Simulacrum) unable to leave a phantom copy behind,
+  and losing a spent Duplicate and picking a fresh one later gives a working card instead of an
+  inert one.
+- The chooser opens synchronously from `OnAddCard`, not after a delay. UnboundLib runs
+  `OnAddCard` as a *prefix* on `ApplyStats`, so the new card is not in `currentCards` yet and
+  every count taken there is one short — but a delayed open is worse than a stale count: it can
+  take the pick hold *after* the pick-end hook has stopped waiting, which drops the whole lobby
+  into the round underneath the overlay. The owner's client asks, and the master re-checks the
+  debt when the request lands seconds later, with every hand settled.
+- Clone's round-end copies go through the same card-bar reconciliation the Silver Egg hatch
+  needed. `AddCardToPlayer` puts a card on the bar that exists at that moment, and the bar is
+  torn down between rounds and rebuilt, so a grant that lands at round end shows in the stats
+  but never on the bar. `CardBarDebt` remembers what was handed out and re-asserts it at every
+  pick and point start until the bar agrees with the hand.
+- In offline mode the chooser only ever opens for the human. `PhotonView.IsMine` is true for
+  every player there, so the plain `IsMine` check the rest of the pack uses would pop a card
+  chooser over the host's screen when a *bot* picked Duplicate. The trade is that a bot that
+  picks one of these two gets nothing from it — nobody is there to choose, and choosing for
+  your opponent is worse than the card being quiet. Both are built for a real lobby.
+- A deferred chooser only reopens on your own pick, like Thief's. It holds the lobby while it
+  is up, so reopening it during somebody else's pick would stall a player who has nothing to
+  do with it.
+- Card art for both is placeholder: drawn procedurally in the pack's sticker language by
+  `tools/make-copy-art.py` rather than painted like the rest. Dropping a replacement PNG in
+  `Art/` under the same name is all it takes to swap.
+
 ## 1.2.10
 
 - **TASER TASER TASER no longer tazes its own holder, and only the holder's hits taze.**

@@ -56,6 +56,14 @@ namespace LeanAndMeanCards.Utils
                     SilverEggManager.ShowStat,
                     SilverEggManager.StatusText);
 
+                Stat(Duplicate.Title,
+                    CardCopyManager.ShowDuplicateStat,
+                    CardCopyManager.DuplicateStatusText);
+
+                Stat(Clone.Title,
+                    CardCopyManager.ShowCloneStat,
+                    CardCopyManager.CloneStatusText);
+
                 Plugin.Instance?.Log("Registered card statuses with TabInfo.");
             }
             catch (Exception ex)
