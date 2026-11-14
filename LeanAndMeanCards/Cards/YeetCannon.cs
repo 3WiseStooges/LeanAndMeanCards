@@ -11,7 +11,7 @@ namespace LeanAndMeanCards.Cards
         protected override string GetTitle() => Title;
 
         protected override string GetDescription() =>
-            "+100% bullet knockback and +15% damage. Your shots strongly kick you away from your gun (aim down to hop).";
+            "+100% bullet knockback and +15% damage. Everything you hit goes flying.";
 
         protected override CardInfo.Rarity GetRarity() => CardInfo.Rarity.Rare;
 
@@ -28,12 +28,6 @@ namespace LeanAndMeanCards.Cards
             base.SetupCard(cardInfo, gun, cardStats, statModifiers);
             gun.damage = 1.15f;
             gun.knockback = 2f;
-        }
-
-        public override void OnAddCard(Player player, Gun gun, GunAmmo gunAmmo, CharacterData data, HealthHandler health,
-            Gravity gravity, Block block, CharacterStatModifiers characterStats)
-        {
-            SelfKick.Ensure(player);
         }
     }
 }

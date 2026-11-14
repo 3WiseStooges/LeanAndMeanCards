@@ -1,5 +1,38 @@
 # Changelog
 
+## 1.4.0
+
+- **Duplicate and Clone now ask after the pick phase, not during it.** Opening the chooser
+  the moment the card was picked meant it could land on top of somebody else's picking turn
+  and hold them there. It now runs from the pick-end hook, the way Genie's wish shop does:
+  everyone has finished choosing cards, then the round waits up to **two minutes** (Genie's
+  own window) for the copy to be chosen. Whoever is choosing sees a countdown in the panel;
+  everyone else gets a banner naming who it is waiting for, with the same clock.
+- Nothing is lost if the clock runs out. The master spends the copy on the best card in that
+  player's hand and the round moves on, instead of leaving the debt pending and stalling the
+  next pick end for another two minutes. Bots are resolved the same way, immediately and
+  without any waiting — nobody can answer a chooser for them, so in 1.3.0 an AI that picked
+  Duplicate simply got nothing.
+- Every client decides when to stop waiting from the same synced state — who is owed a copy
+  and still holds something copyable — so there is no handshake to race and no hold counter
+  to get stuck. A player who is owed a copy but has nothing copyable is never waited for.
+- **The chooser was rebuilt.** The old one put a ScrollRect inside a VerticalLayoutGroup,
+  which drove the scroll rect's own transform and spilled the card rows over the buttons.
+  Everything is explicitly placed now: title and countdown on one line, one card per row with
+  a rarity colour chip and a count of how many you hold, a real scroll area, and two
+  ordinary-sized buttons.
+- Only copyable cards are listed. Greying out the rest made the list twice as long and asked
+  the reader to work out why half of it was dead; a single line underneath now counts what
+  was left out and why. Rarity moved from the card name's colour to a chip at the left edge —
+  a common card's grey name read as disabled next to a rare card's blue one.
+- **Yeet Cannon no longer kicks its own holder.** It is +100% bullet knockback and +15%
+  damage; the self-knockback on firing, and the `Gun.Attack` patch behind it, are gone.
+- **Takebacksies is Rare instead of Common**, and its category blacklist is re-asserted at
+  every pick rather than once at game start. The blacklist is what keeps it out of the normal
+  draw pool so it is only offered when you actually have a card to take back — a player who
+  joined late, or whose stats were rebuilt by another mod, lost it and started drawing a
+  *common* Takebacksies from the ordinary pool, which is why it turned up so often.
+
 ## 1.3.0
 
 - **Two new cards that copy what you already have: Duplicate (rare) and Clone (legendary).**

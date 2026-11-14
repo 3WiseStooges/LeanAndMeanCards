@@ -22,7 +22,6 @@ They are their own mod now. Install the others alongside this one if you want th
 | :---: | --- |
 | **Confetti** | +2 ammo, 25% faster fire, 10% less damage |
 | **Shove** | +40% bullet knockback and +25% damage |
-| **Takebacksies** | After someone steals from you, yoink that card back |
 
 ## Uncommon
 
@@ -38,17 +37,18 @@ They are their own mod now. Install the others alongside this one if you want th
 | | |
 | :---: | --- |
 | **Draft Sniper** | During someone else's pick, click a card to lock it so they can't take that one. Extra copies stack. |
-| **Duplicate** | Pick a card you already have and get a second copy of it. Extra copies each give another pick. |
+| **Duplicate** | Once everyone has picked, choose a card you already have and get a second copy of it. Extra copies each give another pick. |
 | **Safety Net** | Map edges no longer deal damage. If you get stuck outside the map, you die after a few seconds. |
 | **Silver Egg** | Hatches after 2 rounds into a small random card haul. Extra copies each hatch another. |
 | **TASER TASER TASER** | Hits stun for +0.5s, 15% faster fire, -1 ammo |
-| **Yeet Cannon** | +100% bullet knockback, +15% damage, and your shots strongly kick you away from your gun |
+| **Takebacksies** | After someone steals from you, yoink that card back. Only offered when you have one to take. |
+| **Yeet Cannon** | +100% bullet knockback and +15% damage. Everything you hit goes flying. |
 
 ## Legendary
 
 | | |
 | :---: | --- |
-| **Clone** | Pick a card you already have. You get a copy now, and another at the end of every round after. |
+| **Clone** | Once everyone has picked, choose a card you already have. You get a copy now, and another at the end of every round after. |
 | **Sandbag Simulator** | Reroll someone's cards (once per game). The pick waits until you choose. |
 | **Thief** | Steal one card from another player (once per game). Only you can use the prompt. |
 
@@ -70,5 +70,9 @@ None of these are required.
 - Duplicate and Clone copy almost anything in your hand, including cards from other mods. They
   will not copy each other, a Unique card, a curse, or a card whose whole effect is a one-shot
   prompt (Thief, Sandbag Simulator, Jar of Dirt, Return to Sender) — a second copy of those
-  does nothing. The chooser says why next to anything it will not take.
+  does nothing. The chooser lists only what it can take, and a line underneath counts the rest.
+- Their chooser opens **after everyone has picked**, never during somebody's turn, and the
+  round waits up to **two minutes** for the choice — the same window Genie's wish shop uses.
+  Everyone else sees who it is waiting for and the same countdown. Let the clock run out and
+  the best card in your hand is copied for you, so the card is never wasted.
 - If **Mulligan Madness** is installed, Draft Sniper and Sandbag wait while Take All is happening.

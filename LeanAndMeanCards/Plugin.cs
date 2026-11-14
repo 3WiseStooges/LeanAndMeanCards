@@ -24,7 +24,7 @@ namespace LeanAndMeanCards
     {
         public const string ModId = "com.ljindustries.rounds.leanandmeancards";
         public const string ModName = "Lean and Mean Cards";
-        public const string Version = "1.3.0";
+        public const string Version = "1.4.0";
         public const string ModInitials = "LMC";
         public const string CardsMenuName = "LeanAndMeanCards";
 
@@ -120,6 +120,10 @@ namespace LeanAndMeanCards
         {
             DraftSniperManager.ResetForPick();
             CurseOnlyPlayers.ResetCache();
+            // Re-assert every pick, not once at game start: a player who joined late, or
+            // whose stats were rebuilt by another mod, lost the category blacklist and
+            // started drawing Takebacksies out of the normal pool.
+            TakebacksiesBlacklist.EnsureGlobalBlacklist();
             StealLedger.TryOpenDeferredThiefPrompt();
             CardCopyManager.OnPlayerPickStart();
             CardBarMiniIcons.RestampAll();

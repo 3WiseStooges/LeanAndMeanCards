@@ -40,7 +40,7 @@ namespace LeanAndMeanCards.Utils
 
                 Stat("Yeet Cannon",
                     player => CardOwnership.Has(player, YeetCannon.Card),
-                    _ => "Strong kick away from gun");
+                    _ => "+100% bullet knockback");
 
                 Stat("Dynamite",
                     player => CardOwnership.Has(player, Dynamite.Card),

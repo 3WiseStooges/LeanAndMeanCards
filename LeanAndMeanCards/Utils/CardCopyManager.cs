@@ -14,19 +14,27 @@ namespace LeanAndMeanCards.Utils
     /// <summary>
     /// Duplicate and Clone: copying a card out of your own hand.
     ///
-    /// Who does what, because getting this wrong is how pick-phase bugs happen:
-    /// the owner's client runs the chooser and asks, the master client validates and
-    /// performs the add (ModdingUtils' AddCardToPlayer is master-only and RPCs the result
-    /// to everyone), and every client keeps the ledger so Clone keeps ticking even if the
-    /// host changes mid-game.
+    /// The chooser runs at pick end, not during the pick, so it never lands on top of
+    /// somebody else's picking turn. Same shape as Genie's wish shop: the pick-end hook
+    /// blocks on every client for up to two minutes while whoever is owed a copy chooses,
+    /// everyone else gets a waiting banner with the same countdown, and the clock running
+    /// out resolves the choice rather than leaving the round hanging.
+    ///
+    /// Who does what: the owner's client runs the chooser and asks, the master validates
+    /// and performs the add (ModdingUtils' AddCardToPlayer is master-only and RPCs the
+    /// result to everyone), and every client keeps the ledger so Clone keeps ticking even
+    /// if the host changes mid-game.
     ///
     /// Nothing here is a queue. How much a player is owed is derived from live state —
-    /// Duplicates held minus Duplicates spent, Clones held minus Clones registered — so a
-    /// double ApplyStats (Simulacrum) or a closed chooser cannot leave a phantom debt
-    /// behind, and the prompt simply comes back at the next pick.
+    /// Duplicates held minus Duplicates spent, Clones held minus Clones registered — which
+    /// is also what makes the wait loop safe: every client computes "is anyone still
+    /// choosing" from the same synced state, with no handshake to race.
     /// </summary>
     internal static class CardCopyManager
     {
+        /// <summary>Genie's wish shop uses the same two minutes.</summary>
+        internal const float ChooseSeconds = 120f;
+
         // Must NOT be readonly structs: Unity Mono lacks IsReadOnlyAttribute and Harmony
         // aborts the whole assembly's patching if it sees one.
         private sealed class CloneReg
@@ -44,6 +52,7 @@ namespace LeanAndMeanCards.Utils
             GameModeManager.AddHook(GameModeHooks.HookGameStart, OnGameStart);
             GameModeManager.AddHook(GameModeHooks.HookRoundEnd, OnRoundEnd);
             GameModeManager.AddHook(GameModeHooks.HookPickStart, OnPickStart);
+            GameModeManager.AddHook(GameModeHooks.HookPickEnd, OnPickEnd);
             GameModeManager.AddHook(GameModeHooks.HookPointStart, OnPointStart);
         }
 
@@ -52,6 +61,7 @@ namespace LeanAndMeanCards.Utils
             Clones.Clear();
             DuplicatesSpent.Clear();
             CardBarDebt.Reset();
+            CardCopyUi.HideWaiting();
         }
 
         // ---------------------------------------------------------------- debts
@@ -84,62 +94,79 @@ namespace LeanAndMeanCards.Utils
             return count;
         }
 
+        /// <summary>
+        /// Owed a copy *and* holding something copyable. The second half matters: an
+        /// unspendable Duplicate would otherwise stall every pick end for a full two
+        /// minutes waiting on a choice that cannot be made.
+        /// </summary>
+        private static bool OwesCopy(Player player)
+        {
+            if (player == null) return false;
+            if (DuplicateDebt(player) <= 0 && CloneDebt(player) <= 0) return false;
+            return CardCopyRules.CountCopyable(player) > 0;
+        }
+
+        /// <summary>
+        /// Is there a person who can answer a chooser for this player? Offline that is
+        /// only the local human — a bot has nobody, and waiting on one would hang the
+        /// round for the full two minutes every time an AI picked Duplicate.
+        /// </summary>
+        private static bool IsHumanControlled(Player player)
+        {
+            if (player?.data == null) return false;
+            if (!PhotonNetwork.OfflineMode) return true;
+
+            var local = LocalPlayerUtil.LocalPlayer();
+            return local != null && local.playerID == player.playerID;
+        }
+
+        /// <summary>The players the lobby actually waits for at pick end.</summary>
+        private static List<Player> PlayersChoosing()
+        {
+            var result = new List<Player>();
+            var players = PlayerManager.instance?.players;
+            if (players == null) return result;
+
+            foreach (var player in players)
+            {
+                if (OwesCopy(player) && IsHumanControlled(player)) result.Add(player);
+            }
+
+            return result;
+        }
+
         // ------------------------------------------------------------- prompting
 
         /// <summary>
-        /// Called from OnAddCard for the card that was just picked.
-        ///
-        /// Two things are deliberate. The chooser opens synchronously, like Thief's: it
-        /// takes the pick hold while the pick is still running, and a delayed open could
-        /// push that hold after the pick-end hook had already stopped waiting, which drops
-        /// the whole lobby into the round underneath the overlay. And it does not consult
-        /// the debt, because UnboundLib runs OnAddCard as a *prefix* on ApplyStats — the
-        /// new card is not in currentCards yet, so every count here is one short. The
-        /// master re-checks the debt when the request arrives, seconds later, by which
-        /// point the hand is settled on every client.
+        /// Called from OnAddCard. Deliberately does not open anything: the chooser waits
+        /// for pick end so it cannot overlap another player's turn. This only tells the
+        /// owner that something is coming.
         /// </summary>
         internal static void NotifyCopyCardGained(Player player, CardCopyKind kind)
         {
             if (!IsLocalOwner(player)) return;
 
-            if (CardCopyRules.CountCopyable(player) <= 0)
-            {
-                // Nothing worth copying yet (Duplicate as a first card, a hand of curses).
-                // The card stays unspent, so the chooser comes back at the next pick.
-                PlayerNotice.Show(player, "Nothing in your hand can be copied yet.");
-                return;
-            }
-
-            CardCopyUi.TryOpen(player, kind);
+            PlayerNotice.Show(player, kind == CardCopyKind.Clone
+                ? "Clone: you choose a card once everyone has picked."
+                : "Duplicate: you choose a card once everyone has picked.");
         }
 
-        /// <summary>
-        /// Re-opens the chooser for a copy card that is still unspent: closed with "Later",
-        /// or picked when nothing in the hand could be copied yet.
-        ///
-        /// Only on the local player's own pick, like Thief's deferred prompt. The chooser
-        /// holds the whole lobby while it is up, so opening it during somebody else's pick
-        /// would stall a player who has nothing to do with it.
-        /// </summary>
-        internal static void TryPromptLocal()
+        /// <summary>Opens the chooser for the local player, if this client is owed a copy.</summary>
+        private static void TryPromptLocal()
         {
             if (CardCopyUi.IsOpen || StealUi.IsOpen || CardTargetUi.IsOpen) return;
 
-            var picker = PickPhase.GetCurrentPicker();
-            if (!IsLocalOwner(picker)) return;
+            var players = PlayerManager.instance?.players;
+            if (players == null) return;
 
-            var wantsClone = CloneDebt(picker) > 0;
-            var wantsDuplicate = DuplicateDebt(picker) > 0;
-            if (!wantsClone && !wantsDuplicate) return;
-
-            if (CardCopyRules.CountCopyable(picker) <= 0)
+            foreach (var player in players)
             {
-                PlayerNotice.Show(picker, "Nothing in your hand can be copied yet.");
-                return;
-            }
+                if (!IsLocalOwner(player) || !OwesCopy(player)) continue;
 
-            // Clone first: it is the bigger effect and it starts paying out this round.
-            CardCopyUi.TryOpen(picker, wantsClone ? CardCopyKind.Clone : CardCopyKind.Duplicate);
+                // Clone first: it is the bigger effect and it starts paying out this round.
+                var kind = CloneDebt(player) > 0 ? CardCopyKind.Clone : CardCopyKind.Duplicate;
+                if (CardCopyUi.TryOpen(player, kind)) return;
+            }
         }
 
         // -------------------------------------------------------------- requests
@@ -310,6 +337,127 @@ namespace LeanAndMeanCards.Utils
             yield break;
         }
 
+        /// <summary>
+        /// The whole pick phase is over here, so a chooser can open without stepping on
+        /// anyone's turn. Every client runs this and blocks together: the "still choosing"
+        /// test reads synced state, so no client needs to be told when to stop waiting.
+        /// </summary>
+        private static IEnumerator OnPickEnd(IGameModeHandler gm)
+        {
+            ReconcileSpent();
+            CardBarDebt.Flush();
+
+            // Bots get theirs resolved on the spot. Nobody can answer a chooser for them,
+            // and the alternative is either a dead card or a two-minute hang.
+            if (PhotonNetwork.OfflineMode || PhotonNetwork.IsMasterClient) AutoResolve(forHumans: false);
+
+            if (PlayersChoosing().Count == 0) yield break;
+
+            TryPromptLocal();
+
+            var left = ChooseSeconds;
+            var recheck = 0f;
+            var waiting = PlayersChoosing();
+
+            while (left > 0f && waiting.Count > 0)
+            {
+                // Unscaled: the between-rounds screen does not run on game time.
+                left -= Time.unscaledDeltaTime;
+                recheck -= Time.unscaledDeltaTime;
+
+                // Four times a second, not every frame: the copyable test runs a
+                // reflection call per card per player, and this loop can run for two
+                // minutes. The countdown still updates every frame.
+                if (recheck <= 0f)
+                {
+                    recheck = 0.25f;
+                    waiting = PlayersChoosing();
+                    if (waiting.Count == 0) break;
+
+                    // Retry: this client's chooser may have been blocked by Thief's
+                    // overlay when the hook started, and that can close while we wait.
+                    TryPromptLocal();
+                }
+
+                if (CardCopyUi.IsOpen)
+                {
+                    CardCopyUi.HideWaiting();
+                    CardCopyUi.SetCountdown(left);
+                }
+                else
+                {
+                    // Someone else is choosing, or this client's chooser could not open.
+                    CardCopyUi.ShowWaiting(WaitingText(waiting), left);
+                }
+
+                yield return null;
+            }
+
+            CardCopyUi.Close();
+            CardCopyUi.HideWaiting();
+
+            // Out of time. Resolve rather than leave it pending, or an away player stalls
+            // the lobby for two minutes again every single pick end.
+            if (PhotonNetwork.OfflineMode || PhotonNetwork.IsMasterClient) AutoResolve(forHumans: true);
+        }
+
+        private static string WaitingText(List<Player> waiting)
+        {
+            if (waiting.Count == 1)
+            {
+                return $"Waiting for {PlayerLabels.For(waiting[0])} to copy a card";
+            }
+
+            return $"Waiting for {waiting.Count} players to copy a card";
+        }
+
+        /// <summary>
+        /// Master-side fallback: spend an outstanding copy on the best card that player
+        /// holds, so it is never wasted and the round always moves on. Used for bots up
+        /// front, and for a human who let the clock run out.
+        /// </summary>
+        private static void AutoResolve(bool forHumans)
+        {
+            var players = PlayerManager.instance?.players;
+            if (players == null) return;
+
+            foreach (var player in players)
+            {
+                if (!OwesCopy(player) || IsHumanControlled(player) != forHumans) continue;
+
+                var card = BestCopyable(player);
+                if (card == null) continue;
+
+                var clone = CloneDebt(player) > 0;
+                Plugin.Instance?.Log(
+                    $"{(clone ? Clone.Title : Duplicate.Title)}: timed out for player {player.playerID} "
+                    + $"({PlayerLabels.For(player)}), auto-picking '{card.cardName}'.");
+
+                NetworkingManager.RPC(
+                    typeof(CardCopyManager),
+                    nameof(RPCA_ApplyCopy),
+                    player.playerID,
+                    CardEncoding.Encode(card),
+                    clone);
+            }
+        }
+
+        private static CardInfo BestCopyable(Player player)
+        {
+            var cards = player?.data?.currentCards;
+            if (cards == null) return null;
+
+            CardInfo best = null;
+            foreach (var card in cards)
+            {
+                if (card == null) continue;
+                if (!CardCopyRules.IsCopyable(player, card, out _)) continue;
+                if (best == null || (int)card.rarity > (int)best.rarity) best = card;
+            }
+
+            return best;
+        }
+
         private static IEnumerator OnRoundEnd(IGameModeHandler gm)
         {
             yield return null;
@@ -344,7 +492,6 @@ namespace LeanAndMeanCards.Utils
         {
             CardBarDebt.Flush();
             ReconcileSpent();
-            TryPromptLocal();
 
             if (Unbound.Instance == null) return;
             Unbound.Instance.ExecuteAfterSeconds(0.25f, CardBarDebt.Flush);

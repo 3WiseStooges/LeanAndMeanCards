@@ -13,7 +13,7 @@ namespace LeanAndMeanCards.Cards
         protected override string GetDescription() =>
             "Someone stole from you? Yoink your card back from whoever is holding it now.";
 
-        protected override CardInfo.Rarity GetRarity() => CardInfo.Rarity.Common;
+        protected override CardInfo.Rarity GetRarity() => CardInfo.Rarity.Rare;
 
         protected override bool AllowMultiple => true;
 
