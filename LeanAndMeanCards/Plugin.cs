@@ -24,7 +24,7 @@ namespace LeanAndMeanCards
     {
         public const string ModId = "com.ljindustries.rounds.leanandmeancards";
         public const string ModName = "Lean and Mean Cards";
-        public const string Version = "1.5.0";
+        public const string Version = "1.5.1";
         public const string ModInitials = "LMC";
         public const string CardsMenuName = "LeanAndMeanCards";
 
@@ -158,6 +158,7 @@ namespace LeanAndMeanCards
     {
         public ConfigEntry<bool> SandbagOncePerGame { get; }
         public ConfigEntry<bool> SoftenCardGlow { get; }
+        public ConfigEntry<float> MiniIconBrightness { get; }
         public ConfigEntry<bool> Diagnostics { get; }
         public ConfigEntry<bool> FilterProjectileImpulses { get; }
 
@@ -173,6 +174,13 @@ namespace LeanAndMeanCards
             SoftenCardGlow = config.Bind(
                 "Visuals", "SoftenCardGlow", true,
                 "Kill the particle glow on this pack's pick cards and mini icons. Sticker outlines stay.");
+
+            MiniIconBrightness = config.Bind(
+                "Visuals", "MiniIconBrightness", MmMiniColorLock.DefaultBrightness,
+                new ConfigDescription(
+                    "Tint on this pack's mini icons (card bar and pick-card corner). Lower keeps the "
+                    + "game's bloom from washing them out; 1 is the raw PNG.",
+                    new AcceptableValueRange<float>(0.3f, 1f)));
 
             Diagnostics = config.Bind(
                 "Diagnostics", "Diagnostics", false,

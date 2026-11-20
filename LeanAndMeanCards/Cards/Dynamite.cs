@@ -16,7 +16,7 @@ namespace LeanAndMeanCards.Cards
         protected override string GetTitle() => Title;
 
         protected override string GetDescription() =>
-            "Bullets plant a small delayed blast on hit, including bounces. Weak boom with no screen warp, but players and loose objects in the radius go flying.";
+            "Bullets leave a small lit stick of dynamite where they hit, including bounces. It goes off a moment later: weak boom with no screen warp, but players and loose objects in the radius go flying.";
 
         protected override CardInfo.Rarity GetRarity() => CardInfo.Rarity.Uncommon;
 

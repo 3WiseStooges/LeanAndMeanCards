@@ -11,7 +11,7 @@ namespace LeanAndMeanCards.Cards
         protected override string GetTitle() => Title;
 
         protected override string GetDescription() =>
-            "+4 ammo, 40% faster fire, and tighter spread. 20% less damage.";
+            "Hold to spray: always full auto, whatever else you pick. +4 ammo, 40% faster fire, and tighter spread. 20% less damage.";
 
         protected override CardInfo.Rarity GetRarity() => CardInfo.Rarity.Uncommon;
 

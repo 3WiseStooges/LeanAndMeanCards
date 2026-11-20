@@ -5,9 +5,18 @@ using UnityEngine;
 
 namespace LeanAndMeanCards.Utils
 {
+    /// <summary>
+    /// Bozo Shoes marks: who is wearing clown shoes this point, and the shoes themselves.
+    ///
+    /// A mark lasts one point (one fight). It used to be cleared only at round end and
+    /// re-applied at every point start, so a single hit kept the shoes and the +50%
+    /// knockback on for the whole best-of-three.
+    /// </summary>
     internal static class BozoShoesRuntime
     {
-        private const string VisualName = "MM_BozoMark";
+        internal const string LabelRootName = "MM_BozoMark";
+        internal const string ShoeName = "MM_BozoShoe";
+
         private static readonly HashSet<int> Marked = new HashSet<int>();
         private static Sprite _shoeSprite;
         private static Sprite _labelSprite;
@@ -15,14 +24,21 @@ namespace LeanAndMeanCards.Utils
         internal static void RegisterHooks()
         {
             GameModeManager.AddHook(GameModeHooks.HookGameStart, OnClear);
+            GameModeManager.AddHook(GameModeHooks.HookPointStart, OnClear);
+            GameModeManager.AddHook(GameModeHooks.HookPointEnd, OnClear);
             GameModeManager.AddHook(GameModeHooks.HookRoundEnd, OnClear);
-            GameModeManager.AddHook(GameModeHooks.HookPointStart, OnPointStart);
         }
 
         internal static void Clear()
         {
             Marked.Clear();
-            StripAllVisuals();
+            var players = PlayerManager.instance?.players;
+            if (players == null) return;
+            foreach (var player in players)
+            {
+                var visual = player != null ? player.GetComponent<BozoShoesVisual>() : null;
+                if (visual != null) Object.Destroy(visual);
+            }
         }
 
         internal static bool IsMarked(Player player) =>
@@ -32,8 +48,8 @@ namespace LeanAndMeanCards.Utils
         {
             if (victim == null) return;
             Marked.Add(victim.playerID);
-            AttachVisual(victim);
-            EnsureTicker(victim);
+            if (victim.GetComponent<BozoShoesVisual>() == null)
+                victim.gameObject.AddComponent<BozoShoesVisual>();
         }
 
         private static IEnumerator OnClear(IGameModeHandler gm)
@@ -42,185 +58,144 @@ namespace LeanAndMeanCards.Utils
             yield break;
         }
 
-        private static IEnumerator OnPointStart(IGameModeHandler gm)
-        {
-            yield return null;
-            ReapplyVisuals();
-        }
-
-        private static void ReapplyVisuals()
-        {
-            var players = PlayerManager.instance?.players;
-            if (players == null) return;
-            foreach (var player in players)
-            {
-                if (!IsMarked(player)) continue;
-                AttachVisual(player);
-                EnsureTicker(player);
-            }
-        }
-
-        private static void StripAllVisuals()
-        {
-            var players = PlayerManager.instance?.players;
-            if (players == null) return;
-            foreach (var player in players)
-            {
-                StripVisual(player);
-                var ticker = player != null ? player.GetComponent<BozoShoesTicker>() : null;
-                if (ticker != null) Object.Destroy(ticker);
-            }
-        }
-
-        private static void StripVisual(Player player)
-        {
-            if (player == null) return;
-            var root = FindVisual(player);
-            if (root != null) Object.Destroy(root);
-        }
-
-        private static GameObject FindVisual(Player player)
+        /// <summary>
+        /// The player's two feet, left one first, from the leg rig the game animates.
+        /// Tries the drawn legs first (LegRenderer.end), then the IK targets behind them.
+        /// Null when no rig is found; the caller falls back to a fixed pose.
+        /// </summary>
+        internal static List<Transform> FindFeet(Player player)
         {
             if (player == null) return null;
-            var found = player.transform.Find(VisualName);
-            return found != null ? found.gameObject : null;
-        }
+            var feet = new List<KeyValuePair<Transform, float>>();
 
-        private static void EnsureTicker(Player player)
-        {
-            if (player == null) return;
-            if (player.GetComponent<BozoShoesTicker>() == null)
-                player.gameObject.AddComponent<BozoShoesTicker>();
-        }
-
-        internal static void AttachVisual(Player player)
-        {
-            if (player == null) return;
-            if (FindVisual(player) != null) return;
-
-            var root = new GameObject(VisualName);
-            root.transform.SetParent(player.transform, false);
-            root.transform.localPosition = Vector3.zero;
-            root.transform.localRotation = Quaternion.identity;
-            root.transform.localScale = Vector3.one;
-            root.layer = player.gameObject.layer;
-
-            var sort = 80;
-            var layer = "Default";
-            var bodySprite = player.GetComponentInChildren<SpriteRenderer>(true);
-            if (bodySprite != null)
+            void Add(Transform foot, Transform hip)
             {
-                sort = bodySprite.sortingOrder + 40;
-                if (!string.IsNullOrEmpty(bodySprite.sortingLayerName))
-                    layer = bodySprite.sortingLayerName;
+                if (foot == null) return;
+                foreach (var f in feet)
+                    if (f.Key == foot) return;
+                // Sort on the hip, not the foot: feet cross mid-stride, hips do not.
+                var side = hip != null ? hip.position.x : foot.position.x;
+                feet.Add(new KeyValuePair<Transform, float>(foot, side));
             }
 
-            AddSprite(root.transform, "Label", LabelSprite(), Vector3.zero, 0f, Vector3.one, sort + 2, layer);
-            AddSprite(root.transform, "ShoeL", ShoeSprite(), Vector3.zero, 22f, Vector3.one, sort, layer);
-            AddSprite(root.transform, "ShoeR", ShoeSprite(), Vector3.zero, -22f, new Vector3(-1f, 1f, 1f), sort, layer);
-            Pose(player, root);
-        }
+            foreach (var leg in player.GetComponentsInChildren<LegRenderer>(false))
+                if (leg != null) Add(leg.end, leg.start);
 
-        internal static void Pose(Player player)
-        {
-            var root = FindVisual(player);
-            if (root == null) return;
-            Pose(player, root);
-        }
-
-        private static void Pose(Player player, GameObject root)
-        {
-            var origin = player.data?.playerVel != null
-                ? player.data.playerVel.transform.position
-                : player.transform.position;
-            var size = 1f;
-            if (player.data?.stats != null) size = Mathf.Max(0.45f, player.data.stats.sizeMultiplier);
-
-            var head = origin + Vector3.up * (0.85f * size);
-
-            var label = root.transform.Find("Label");
-            var shoeL = root.transform.Find("ShoeL");
-            var shoeR = root.transform.Find("ShoeR");
-
-            if (label != null)
+            if (feet.Count < 2)
             {
-                label.position = head + Vector3.up * (0.58f * size);
-                label.rotation = Quaternion.identity;
-                label.localScale = Vector3.one * (0.95f * size);
+                feet.Clear();
+                foreach (var leg in player.GetComponentsInChildren<IkLeg>(false))
+                    if (leg != null) Add(leg.footTarget, leg.legRoot);
             }
 
-            var feet = origin + Vector3.down * (0.92f * size);
-            if (shoeL != null)
+            if (feet.Count < 2)
             {
-                shoeL.position = feet + Vector3.left * (0.28f * size);
-                shoeL.rotation = Quaternion.Euler(0f, 0f, 18f);
-                shoeL.localScale = Vector3.one * (0.55f * size);
+                feet.Clear();
+                foreach (var leg in player.GetComponentsInChildren<IKLegMove>(false))
+                    if (leg != null) Add(leg.foot, leg.transform);
             }
 
-            if (shoeR != null)
-            {
-                shoeR.position = feet + Vector3.right * (0.28f * size);
-                shoeR.rotation = Quaternion.Euler(0f, 0f, -18f);
-                shoeR.localScale = new Vector3(-0.55f * size, 0.55f * size, 1f);
-            }
+            if (feet.Count < 2) return null;
+            feet.Sort((a, b) => a.Value.CompareTo(b.Value));
+            // Outermost pair if a mod gave the player extra legs.
+            return new List<Transform> { feet[0].Key, feet[feet.Count - 1].Key };
         }
 
-        private static void AddSprite(Transform parent, string name, Sprite sprite, Vector3 localPos, float zRot, Vector3 localScale, int sort, string layer)
+        /// <summary>
+        /// Draw order for the marks: in front of the legs (or the shoe would sit behind the
+        /// leg line it is meant to cover), and at least well in front of the body.
+        /// </summary>
+        internal static void SortFor(Player player, out string layer, out int order)
         {
-            var go = new GameObject(name, typeof(SpriteRenderer));
-            go.transform.SetParent(parent, false);
-            go.transform.localPosition = localPos;
-            go.transform.localRotation = Quaternion.Euler(0f, 0f, zRot);
-            go.transform.localScale = localScale;
-            go.layer = parent.gameObject.layer;
-            var sr = go.GetComponent<SpriteRenderer>();
-            sr.sprite = sprite;
-            sr.sortingOrder = sort;
-            sr.sortingLayerName = layer;
-            sr.color = Color.white;
-        }
+            layer = "Default";
+            order = 80;
+            var body = player != null ? player.GetComponentInChildren<SpriteRenderer>(true) : null;
+            if (body == null) return;
+            if (!string.IsNullOrEmpty(body.sortingLayerName)) layer = body.sortingLayerName;
+            order = body.sortingOrder + 40;
 
-        private static Sprite ShoeSprite()
-        {
-            if (_shoeSprite != null) return _shoeSprite;
-            const int w = 80;
-            const int h = 48;
-            var tex = new Texture2D(w, h, TextureFormat.RGBA32, false)
+            foreach (var leg in player.GetComponentsInChildren<LegRenderer>(true))
             {
-                filterMode = FilterMode.Point,
-                wrapMode = TextureWrapMode.Clamp
-            };
-
-            var cream = new Color(1f, 0.93f, 0.82f, 1f);
-            var red = new Color(0.95f, 0.12f, 0.18f, 1f);
-            var yellow = new Color(1f, 0.86f, 0.12f, 1f);
-            var cx = (w - 1) * 0.5f;
-            var cy = (h - 1) * 0.46f;
-            var rx = w * 0.46f;
-            var ry = h * 0.40f;
-            for (var y = 0; y < h; y++)
-            {
-                for (var x = 0; x < w; x++)
+                if (leg == null) continue;
+                foreach (var r in leg.GetComponentsInChildren<Renderer>(true))
                 {
-                    var nx = (x - cx) / rx;
-                    var ny = (y - cy) / ry;
-                    var d = nx * nx + ny * ny;
-                    if (d > 1f) { tex.SetPixel(x, y, Color.clear); continue; }
-                    Color c;
-                    if (d > 0.78f) c = cream;
-                    else if (ny > -0.12f && ny < 0.28f) c = yellow;
-                    else c = red;
-                    tex.SetPixel(x, y, c);
+                    if (r == null || r.sortingLayerName != layer) continue;
+                    order = Mathf.Max(order, r.sortingOrder + 2);
                 }
             }
+        }
 
-            tex.Apply();
-            Object.DontDestroyOnLoad(tex);
-            _shoeSprite = Sprite.Create(tex, new Rect(0f, 0f, w, h), new Vector2(0.5f, 0.5f), 48f);
+        // Shoe texture layout, in pixels, y up. Side view, toe pointing right; the left
+        // shoe is the same sprite mirrored.
+        private const int ShoeW = 104, ShoeH = 60;
+        private const float ToeX = 66f, ToeY = 27f, ToeRx = 30f, ToeRy = 19f;
+        private const float HeelX = 28f, HeelY = 25f, HeelRx = 18f, HeelRy = 16f;
+        private const float CuffX = 30f, CuffY = 40f;
+        private const float SoleTop = 13f;
+        /// <summary>Pivot: the bottom of the sole, under the ankle. Sits on the foot point.</summary>
+        private const float AnkleX = 30f, SoleY = 8f;
+        /// <summary>Toe tip to heel back, in pixels.</summary>
+        private const float ShoeLengthPx = ToeX + ToeRx - (HeelX - HeelRx);
+
+        private static readonly Color ShoeRedLit = new Color(1f, 0.40f, 0.36f, 1f);
+        private static readonly Color ShoeRed = new Color(0.94f, 0.10f, 0.14f, 1f);
+        private static readonly Color ShoeRedDark = new Color(0.56f, 0.04f, 0.08f, 1f);
+        private static readonly Color ShoeGloss = new Color(1f, 0.82f, 0.78f, 1f);
+        private static readonly Color SoleLit = new Color(1f, 0.95f, 0.86f, 1f);
+        private static readonly Color SoleDark = new Color(0.80f, 0.70f, 0.56f, 1f);
+        private static readonly Color CuffYellow = new Color(1f, 0.84f, 0.16f, 1f);
+        private static readonly Color CuffDark = new Color(0.86f, 0.56f, 0.06f, 1f);
+        private static readonly Color Opening = new Color(0.24f, 0.03f, 0.05f, 1f);
+
+        /// <summary>One world unit long at scale 1, pivot on the sole under the ankle.</summary>
+        internal static Sprite ShoeSprite()
+        {
+            if (_shoeSprite != null) return _shoeSprite;
+            var tex = StickerRaster.Supersampled(ShoeW, ShoeH, ShoeSample);
+            _shoeSprite = Sprite.Create(tex, new Rect(0f, 0f, ShoeW, ShoeH),
+                new Vector2(AnkleX / ShoeW, SoleY / ShoeH), ShoeLengthPx);
             return _shoeSprite;
         }
 
-        private static Sprite LabelSprite()
+        private static Color ShoeSample(float x, float y)
+        {
+            var dToe = StickerRaster.EllipseDist(x, y, ToeX, ToeY, ToeRx, ToeRy);
+            var dHeel = StickerRaster.EllipseDist(x, y, HeelX, HeelY, HeelRx, HeelRy);
+            var dMid = StickerRaster.RoundBoxDist(x, y, HeelX, SoleY + 1f, ToeX, 38f, 6f);
+            var dShoe = Mathf.Min(dToe, Mathf.Min(dHeel, dMid));
+            var dCuff = StickerRaster.EllipseDist(x, y, CuffX, CuffY, 13f, 6f);
+
+            // Front to back: ankle cuff and its opening, then the shoe, then the shared
+            // ink outline and cream rim.
+            if (dCuff <= 0f)
+            {
+                if (StickerRaster.EllipseDist(x, y, CuffX, CuffY + 1f, 8.5f, 3.2f) <= 0f) return Opening;
+                return Color.Lerp(CuffYellow, CuffDark, Mathf.InverseLerp(CuffX - 13f, CuffX + 13f, x) * 0.7f);
+            }
+
+            if (dShoe <= 0f)
+            {
+                if (dCuff <= 1.3f) return StickerRaster.Ink;
+                if (Mathf.Abs(y - SoleTop) < 0.9f) return StickerRaster.Ink;
+                if (y < SoleTop)
+                    return Color.Lerp(SoleLit, SoleDark, Mathf.InverseLerp(HeelX - HeelRx, ToeX + ToeRx, x));
+
+                // Lit from the upper left: bright top edge, deep red underneath.
+                var lx = Mathf.InverseLerp(HeelX - HeelRx, ToeX + ToeRx, x);
+                var ly = Mathf.InverseLerp(SoleTop, ToeY + ToeRy, y);
+                var lit = Mathf.Clamp01(ly * 0.85f + (1f - lx) * 0.25f);
+                var col = lit > 0.55f
+                    ? Color.Lerp(ShoeRed, ShoeRedLit, (lit - 0.55f) / 0.45f * 0.8f)
+                    : Color.Lerp(ShoeRedDark, ShoeRed, lit / 0.55f);
+                if (StickerRaster.EllipseDist(x, y, ToeX + 4f, ToeY + 9f, 11f, 4.5f) <= 0f)
+                    col = Color.Lerp(col, ShoeGloss, 0.7f);
+                return col;
+            }
+
+            return StickerRaster.Outline(Mathf.Min(dShoe, dCuff));
+        }
+
+        internal static Sprite LabelSprite()
         {
             if (_labelSprite != null) return _labelSprite;
 
@@ -338,9 +313,25 @@ namespace LeanAndMeanCards.Utils
         }
     }
 
-    internal sealed class BozoShoesTicker : MonoBehaviour
+    /// <summary>
+    /// The clown shoes and BOZO tag on one marked player. Destroying it takes the
+    /// visuals with it, so clearing a mark is just Destroy(visual).
+    ///
+    /// Each shoe is parented to a foot transform from the leg rig, so it walks, steps and
+    /// dangles with the feet the game animates. The old shoes were posed from the body's
+    /// centre every frame, which glued them to the body instead of the feet.
+    /// </summary>
+    internal sealed class BozoShoesVisual : MonoBehaviour
     {
+        /// <summary>Shoe length in world units at player scale 1. Comically big on purpose.</summary>
+        private const float ShoeLength = 0.7f;
+
         private Player _player;
+        private GameObject _labelRoot;
+        private Transform _label;
+        private readonly List<Transform> _shoes = new List<Transform>();
+        private bool _onFeet;
+        private float _nextRigTry;
 
         private void Awake() => _player = GetComponent<Player>();
 
@@ -353,8 +344,111 @@ namespace LeanAndMeanCards.Utils
                 return;
             }
 
-            BozoShoesRuntime.AttachVisual(_player);
-            BozoShoesRuntime.Pose(_player);
+            if (_labelRoot == null || ShoesLost() || (!_onFeet && Time.time >= _nextRigTry))
+                Build();
+            Pose();
         }
+
+        private void OnDestroy() => Teardown();
+
+        private bool ShoesLost()
+        {
+            if (_shoes.Count == 0) return true;
+            foreach (var shoe in _shoes)
+                if (shoe == null) return true;
+            return false;
+        }
+
+        private void Teardown()
+        {
+            if (_labelRoot != null) Destroy(_labelRoot);
+            _labelRoot = null;
+            _label = null;
+            foreach (var shoe in _shoes)
+                if (shoe != null) Destroy(shoe.gameObject);
+            _shoes.Clear();
+        }
+
+        private void Build()
+        {
+            Teardown();
+            BozoShoesRuntime.SortFor(_player, out var layer, out var order);
+
+            _labelRoot = new GameObject(BozoShoesRuntime.LabelRootName);
+            _labelRoot.transform.SetParent(_player.transform, false);
+            _labelRoot.layer = _player.gameObject.layer;
+            _label = Child(_labelRoot.transform, "Label", BozoShoesRuntime.LabelSprite(), layer, order + 2).transform;
+
+            var feet = BozoShoesRuntime.FindFeet(_player);
+            _onFeet = feet != null;
+            if (_onFeet)
+            {
+                foreach (var foot in feet)
+                    _shoes.Add(Child(foot, BozoShoesRuntime.ShoeName, BozoShoesRuntime.ShoeSprite(), layer, order).transform);
+            }
+            else
+            {
+                // No leg rig found (yet): pose under the body and look again shortly.
+                _nextRigTry = Time.time + 0.5f;
+                for (var i = 0; i < 2; i++)
+                    _shoes.Add(Child(_labelRoot.transform, BozoShoesRuntime.ShoeName, BozoShoesRuntime.ShoeSprite(), layer, order).transform);
+            }
+        }
+
+        private GameObject Child(Transform parent, string name, Sprite sprite, string layer, int order)
+        {
+            var go = new GameObject(name, typeof(SpriteRenderer));
+            go.transform.SetParent(parent, false);
+            go.transform.localPosition = Vector3.zero;
+            go.layer = _player.gameObject.layer;
+            var sr = go.GetComponent<SpriteRenderer>();
+            sr.sprite = sprite;
+            sr.sortingLayerName = layer;
+            sr.sortingOrder = order;
+            sr.color = Color.white;
+            return go;
+        }
+
+        private void Pose()
+        {
+            var unit = Mathf.Abs(_player.transform.lossyScale.x);
+            if (unit < 0.01f) unit = 1f;
+            var origin = _player.data?.playerVel != null
+                ? _player.data.playerVel.transform.position
+                : _player.transform.position;
+
+            if (_label != null)
+            {
+                // Same spot and size the tag has always had.
+                var size = _player.data?.stats != null ? Mathf.Max(0.45f, _player.data.stats.sizeMultiplier) : 1f;
+                _label.position = origin + Vector3.up * (1.43f * size);
+                _label.rotation = Quaternion.identity;
+                SetWorldScale(_label, 0.95f * size * unit, 0.95f * size * unit);
+            }
+
+            for (var i = 0; i < _shoes.Count; i++)
+            {
+                var shoe = _shoes[i];
+                if (shoe == null) continue;
+                // Left shoe mirrored so both toes point outward.
+                var side = i == 0 ? -1f : 1f;
+                if (!_onFeet)
+                    shoe.position = origin + new Vector3(side * 0.28f * unit, -0.92f * unit, 0f);
+                else
+                    shoe.localPosition = Vector3.zero;
+                shoe.rotation = Quaternion.identity;
+                var length = ShoeLength * unit;
+                SetWorldScale(shoe, side * length, length);
+            }
+        }
+
+        /// <summary>Sets lossy scale regardless of what the parent is scaled by.</summary>
+        private static void SetWorldScale(Transform t, float x, float y)
+        {
+            var p = t.parent != null ? t.parent.lossyScale : Vector3.one;
+            t.localScale = new Vector3(x / NonZero(p.x), y / NonZero(p.y), 1f);
+        }
+
+        private static float NonZero(float v) => Mathf.Abs(v) < 1e-4f ? (v < 0f ? -1e-4f : 1e-4f) : v;
     }
 }

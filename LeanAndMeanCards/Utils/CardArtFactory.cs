@@ -279,9 +279,7 @@ namespace LeanAndMeanCards.Utils
                 if (sr.GetComponent<MmCardArtTag>() != null) continue;
                 if (!SpriteMatches(sr.sprite, mini, oldSprite)) continue;
                 sr.sprite = mini;
-                sr.color = MmArtColorLock.ArtColor;
-                if (sr.GetComponent<MmArtColorLock>() == null)
-                    sr.gameObject.AddComponent<MmArtColorLock>();
+                MmMiniColorLock.Lock(sr.gameObject);
             }
 
             StampCornerCluster(info, mini);
@@ -350,10 +348,8 @@ namespace LeanAndMeanCards.Utils
             img.sprite = mini;
             img.overrideSprite = mini;
             img.preserveAspect = true;
-            img.color = MmArtColorLock.ArtColor;
             img.enabled = true;
-            if (img.GetComponent<MmArtColorLock>() == null)
-                img.gameObject.AddComponent<MmArtColorLock>();
+            MmMiniColorLock.Lock(img.gameObject);
         }
 
         private static Sprite GetFullSprite(string artName)

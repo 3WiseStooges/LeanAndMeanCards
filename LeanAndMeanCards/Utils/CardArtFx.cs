@@ -51,6 +51,57 @@ namespace LeanAndMeanCards.Utils
     }
 
     /// <summary>
+    /// The same lock for the mini PNGs (card-bar icons, pick-card corner icons), at a
+    /// lower level. Minis are mostly cream sticker rim, so at the full art's 0.82 (and the
+    /// card bar's old plain white) the bloom haloed them into a blur. Level comes from
+    /// the Visuals/MiniIconBrightness config.
+    /// </summary>
+    internal sealed class MmMiniColorLock : MonoBehaviour
+    {
+        internal const float DefaultBrightness = 0.66f;
+
+        internal static Color MiniColor
+        {
+            get
+            {
+                var v = Plugin.Configs != null
+                    ? Mathf.Clamp(Plugin.Configs.MiniIconBrightness.Value, 0.3f, 1f)
+                    : DefaultBrightness;
+                return new Color(v, v, v, 1f);
+            }
+        }
+
+        private Image _image;
+        private SpriteRenderer _sr;
+
+        internal static void Lock(GameObject go)
+        {
+            if (go == null) return;
+            // An older stamp may have left the full-art lock here; two locks would fight.
+            var art = go.GetComponent<MmArtColorLock>();
+            if (art != null) Object.Destroy(art);
+            if (go.GetComponent<MmMiniColorLock>() == null) go.AddComponent<MmMiniColorLock>();
+            var img = go.GetComponent<Image>();
+            if (img != null) img.color = MiniColor;
+            var sr = go.GetComponent<SpriteRenderer>();
+            if (sr != null) sr.color = MiniColor;
+        }
+
+        private void Awake()
+        {
+            _image = GetComponent<Image>();
+            _sr = GetComponent<SpriteRenderer>();
+        }
+
+        private void LateUpdate()
+        {
+            var c = MiniColor;
+            if (_image != null) _image.color = c;
+            if (_sr != null) _sr.color = c;
+        }
+    }
+
+    /// <summary>
     /// Soft drifting blobs behind sticker art — stands in for vanilla art-local
     /// GeneralParticleSystem backgrounds when we only ship PNGs (no asset bundle).
     /// Enabled/disabled with other CardAnimation components by CardVisuals.ChangeSelected.

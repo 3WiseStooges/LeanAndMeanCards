@@ -172,8 +172,9 @@ namespace LeanAndMeanCards.Utils
             image.overrideSprite = sprite;
             image.preserveAspect = true;
             image.raycastTarget = false;
-            image.color = Color.white;
             image.material = null;
+            // Copied into every FancyCardBar instance, so each bar icon carries the lock.
+            MmMiniColorLock.Lock(go);
 
             FancyPrefabs[artName] = go;
             return go;
@@ -233,10 +234,11 @@ namespace LeanAndMeanCards.Utils
             if (ours == null) return;
             ours.sprite = sprite;
             ours.overrideSprite = sprite;
-            ours.color = Color.white;
             ours.material = null;
             ours.enabled = true;
             ours.gameObject.SetActive(true);
+            // Plain white put the cream sticker rim right at bloom threshold.
+            MmMiniColorLock.Lock(ours.gameObject);
         }
 
         private static void ClearMmStamp(GameObject button)

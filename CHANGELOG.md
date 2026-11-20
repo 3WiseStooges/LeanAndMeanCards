@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.5.1
+
+- **Pisser stays full auto.** The game only repeats fire on a held trigger while the gun's
+  cooldown is under 0.3s. Pisser got a stock gun under that line, but any later pick that
+  slowed the gun pushed it back over and the hold turned into click-to-fire. Pisser owners
+  now skip that cutoff: holding keeps firing at whatever rate the gun has.
+- **Dynamite leaves a small lit stick of dynamite** where the bullet hit instead of drawing
+  the whole blast radius for the length of the fuse. It blinks faster as the fuse runs down;
+  the radius only shows when it goes off, as a quick flash and shockwave ending exactly on
+  the damage circle.
+- **Bozo Shoes sit on the feet.** Each shoe now rides the foot the game animates, so it
+  walks, steps and dangles with the legs instead of hanging off the body. The shoes are
+  redrawn as proper clown shoes, toes out.
+- **Bozo Shoes last one fight.** The mark and its +50% knockback now clear at the end of
+  every point instead of carrying through the whole best-of-three.
+- **Plummet has new art** in the same painted sticker style as the rest of the pack.
+- **Mini icons no longer bloom out.** Card-bar and pick-card corner icons are drawn at 66%
+  so the game's bloom stops haloing their cream outlines. New config
+  `Visuals / MiniIconBrightness` (0.3 to 1) tunes it.
+
 ## 1.5.0
 
 - **New rare card: Plummet.** Players you hit are spiked straight down until they

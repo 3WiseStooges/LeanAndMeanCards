@@ -185,6 +185,15 @@ namespace LeanAndMeanCards.Patches
                 var sr = colorLock.GetComponent<SpriteRenderer>();
                 if (sr != null) sr.color = MmArtColorLock.ArtColor;
             }
+
+            var mini = MmMiniColorLock.MiniColor;
+            foreach (var colorLock in root.GetComponentsInChildren<MmMiniColorLock>(true))
+            {
+                var img = colorLock.GetComponent<Image>();
+                if (img != null) img.color = mini;
+                var sr = colorLock.GetComponent<SpriteRenderer>();
+                if (sr != null) sr.color = mini;
+            }
         }
 
         internal static void KillAllParticles(Transform root)
