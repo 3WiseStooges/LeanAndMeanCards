@@ -42,6 +42,10 @@ namespace LeanAndMeanCards.Utils
                     player => CardOwnership.Has(player, YeetCannon.Card),
                     _ => "+100% bullet knockback");
 
+                Stat(Plummet.Title,
+                    player => CardOwnership.Has(player, Plummet.Card),
+                    PlummetRuntime.StatusText);
+
                 Stat("Dynamite",
                     player => CardOwnership.Has(player, Dynamite.Card),
                     _ => "Delayed blast, huge knockback");

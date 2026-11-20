@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.5.0
+
+- **New rare card: Plummet.** Players you hit are spiked straight down until they
+  smack the floor or the bottom of the map. One copy dives at 60 u/s — three times what the
+  game counts as a hard landing — and every extra copy doubles it: 120, 240, 480, 960. Past
+  two copies the drop takes a frame or two, so a short white streak follows the victim down
+  and the landing kicks up more dust and shake per copy.
+- The dive replaces the bullet's knockback rather than adding to it, and is swapped in at
+  the same place the game decides knockback (`CallTakeForce` on the shooter's client), so
+  every client sees the same slam. It holds the downward speed every physics tick instead of
+  giving one push: drag, ramping gravity and a mid-air jump cannot slow it down.
+- A target already on the ground is pinned — no push either way. A dive that reaches any
+  map edge ends right there, so the edge gives its normal bounce and damage once instead of
+  being hit again every tenth of a second by a victim still diving at 960 u/s.
+- Bozo Shoes' +50% knockback applies to the dive speed. Your own reflected shots still push
+  you the normal way.
+
 ## 1.4.0
 
 - **Duplicate and Clone now ask after the pick phase, not during it.** Opening the chooser

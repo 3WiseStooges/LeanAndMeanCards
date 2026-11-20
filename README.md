@@ -1,6 +1,6 @@
 # Lean and Mean Cards
 
-Seventeen cards for ROUNDS. Mostly knockback, stuns and delayed blasts, plus a couple that copy
+Eighteen cards for ROUNDS. Mostly knockback, stuns and delayed blasts, plus a couple that copy
 your own cards and a few that let you mess with somebody else's pick.
 
 Everyone in the lobby needs this mod.
@@ -38,6 +38,7 @@ They are their own mod now. Install the others alongside this one if you want th
 | :---: | --- |
 | **Draft Sniper** | During someone else's pick, click a card to lock it so they can't take that one. Extra copies stack. |
 | **Duplicate** | Once everyone has picked, choose a card you already have and get a second copy of it. Extra copies each give another pick. |
+| **Plummet** | Players you hit get spiked straight down into the floor, or into the bottom of the map. Extra copies double the speed. |
 | **Safety Net** | Map edges no longer deal damage. If you get stuck outside the map, you die after a few seconds. |
 | **Silver Egg** | Hatches after 2 rounds into a small random card haul. Extra copies each hatch another. |
 | **TASER TASER TASER** | Hits stun for +0.5s, 15% faster fire, -1 ammo |

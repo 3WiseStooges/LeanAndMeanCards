@@ -21,6 +21,7 @@ namespace LeanAndMeanCards.Cards
             Bind<DraftSniper>(info => DraftSniper.Card = info);
             Bind<SilverEgg>(info => SilverEgg.Card = info);
             Bind<YeetCannon>(info => YeetCannon.Card = info);
+            Bind<Plummet>(info => Plummet.Card = info);
             Bind<Dynamite>(info => Dynamite.Card = info);
             Bind<TaserTaserTaser>(info => TaserTaserTaser.Card = info);
             Bind<SafetyNet>(info => SafetyNet.Card = info);

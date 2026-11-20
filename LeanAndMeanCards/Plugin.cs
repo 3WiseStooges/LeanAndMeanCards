@@ -24,7 +24,7 @@ namespace LeanAndMeanCards
     {
         public const string ModId = "com.ljindustries.rounds.leanandmeancards";
         public const string ModName = "Lean and Mean Cards";
-        public const string Version = "1.4.0";
+        public const string Version = "1.5.0";
         public const string ModInitials = "LMC";
         public const string CardsMenuName = "LeanAndMeanCards";
 
@@ -79,6 +79,7 @@ namespace LeanAndMeanCards
             CardRegistration.RegisterAll();
             CardArtFactory.BindLoadedCardInfos();
             BozoShoesRuntime.RegisterHooks();
+            PlummetRuntime.RegisterHooks();
             DynamiteBlast.RegisterHooks();
             SilverEggManager.RegisterHooks();
             CardCopyManager.RegisterHooks();
@@ -110,6 +111,7 @@ namespace LeanAndMeanCards
             CurseOnlyPlayers.ResetCache();
             DraftSniperManager.ResetForNewGame();
             BozoShoesRuntime.Clear();
+            PlummetRuntime.Clear();
             SilverEggManager.ResetForNewGame();
             CardCopyManager.ResetForNewGame();
             SafetyNetEscape.Reset();
