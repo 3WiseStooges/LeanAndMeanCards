@@ -341,7 +341,8 @@ namespace LeanAndMeanCards.Utils
 
     /// <summary>
     /// A planted charge: a small lit stick of dynamite sits where the bullet hit and
-    /// blinks faster as the fuse runs down. The blast radius is only drawn when it goes off.
+    /// blinks faster as the fuse runs down. The blast radius is only drawn when it goes off,
+    /// as a full-size red circle.
     ///
     /// It used to draw the full blast-radius ring for the whole fuse, which on a fast gun
     /// meant several big rings on screen at all times.
@@ -470,16 +471,21 @@ namespace LeanAndMeanCards.Utils
     }
 
     /// <summary>
-    /// The boom: a hot flash and a shockwave ring that ends exactly on the blast radius,
-    /// gone in about a third of a second. Behind players, so it never buries the fight.
-    /// Its own object, because the charge is destroyed the frame it detonates.
+    /// The boom: the full blast radius as a red circle, there at full size the instant it
+    /// goes off, held a beat, then faded. A translucent fill so the area reads, and a
+    /// solid rim on the exact edge OverlapCircleAll damages. Behind players, so it never
+    /// buries the fight. Its own object, because the charge is destroyed the frame it
+    /// detonates.
     /// </summary>
     internal sealed class DynamiteBlastFx : MonoBehaviour
     {
-        private const float Duration = 0.34f;
-        private SpriteRenderer _flash;
-        private SpriteRenderer _ring;
-        private float _t;
+        private const float Hold = 0.12f;
+        private const float Fade = 0.32f;
+        private const float FillAlpha = 0.55f;
+
+        private SpriteRenderer _fill;
+        private SpriteRenderer _rim;
+        private float _age;
 
         internal static void Spawn(Vector3 position)
         {
@@ -490,9 +496,10 @@ namespace LeanAndMeanCards.Utils
 
         private void Awake()
         {
-            _flash = Layer("Flash", DynamiteSprites.Flash(), 2);
-            _ring = Layer("Ring", DynamiteSprites.Ring(), 3);
-            Apply(0f);
+            // Scale stays 1: both sprites are authored at BlastRadius.
+            _fill = Layer("Fill", DynamiteSprites.BlastFill(), 2);
+            _rim = Layer("Rim", DynamiteSprites.BlastRim(), 3);
+            Apply(1f);
         }
 
         private SpriteRenderer Layer(string name, Sprite sprite, int order)
@@ -507,40 +514,28 @@ namespace LeanAndMeanCards.Utils
 
         private void Update()
         {
-            _t += Time.deltaTime / Duration;
-            if (_t >= 1f)
+            _age += Time.deltaTime;
+            if (_age >= Hold + Fade)
             {
                 Destroy(gameObject);
                 return;
             }
 
-            Apply(_t);
+            var k = _age <= Hold ? 1f : 1f - (_age - Hold) / Fade;
+            Apply(k * k);
         }
 
-        private void Apply(float t)
+        private void Apply(float strength)
         {
-            var ease = 1f - (1f - t) * (1f - t);
-            if (_ring != null)
-            {
-                var s = Mathf.Lerp(0.3f, 1f, ease);
-                _ring.transform.localScale = new Vector3(s, s, 1f);
-                _ring.color = new Color(1f, 0.95f, 0.85f, Mathf.Clamp01(1.15f - t * t * 1.15f));
-            }
-
-            if (_flash != null)
-            {
-                var s = Mathf.Lerp(0.45f, 0.85f, ease);
-                _flash.transform.localScale = new Vector3(s, s, 1f);
-                var a = (1f - t) * (1f - t) * 0.8f;
-                _flash.color = new Color(1f, 1f, 1f, a);
-            }
+            if (_fill != null) _fill.color = new Color(1f, 1f, 1f, FillAlpha * strength);
+            if (_rim != null) _rim.color = new Color(1f, 1f, 1f, strength);
         }
     }
 
     /// <summary>
-    /// Procedural sprites for the bomb, its fuse spark and the boom. Built once, cached.
-    /// The flash and ring are authored at BlastRadius: localScale 1 draws exactly the
-    /// circle OverlapCircleAll damages.
+    /// Procedural sprites for the dynamite stick, its fuse spark and the boom. Built once,
+    /// cached. The blast fill and rim are authored at BlastRadius: localScale 1 draws
+    /// exactly the circle OverlapCircleAll damages.
     /// </summary>
     internal static class DynamiteSprites
     {
@@ -555,7 +550,7 @@ namespace LeanAndMeanCards.Utils
         private const float TipX = 61f, TipY = 87f;
         private const float StickLengthPx = StickY1 - StickY0;
 
-        private static Sprite _stick, _spark, _flash, _ring;
+        private static Sprite _stick, _spark, _fill, _rim;
         private static float _stickSize, _sparkSize;
 
         private static readonly Color RedLit = new Color(1f, 0.42f, 0.36f, 1f);
@@ -567,6 +562,9 @@ namespace LeanAndMeanCards.Utils
         private static readonly Color BandLit = new Color(1f, 0.95f, 0.86f, 1f);
         private static readonly Color BandDark = new Color(0.84f, 0.74f, 0.58f, 1f);
         private static readonly Color Fuse = new Color(0.90f, 0.78f, 0.55f, 1f);
+        private static readonly Color BlastRed = new Color(0.95f, 0.10f, 0.10f, 1f);
+        private static readonly Color BlastRedHot = new Color(1f, 0.30f, 0.22f, 1f);
+        private static readonly Color BlastRedDark = new Color(0.62f, 0.03f, 0.05f, 1f);
 
         /// <summary>Spark position relative to the stick's pivot, in world units.</summary>
         internal static Vector3 FuseTip(float length)
@@ -596,66 +594,57 @@ namespace LeanAndMeanCards.Utils
             return _spark;
         }
 
-        /// <summary>Hot core fading out to the rim. Full disc, so keep it brief.</summary>
-        internal static Sprite Flash()
+        /// <summary>Red disc filling the blast radius, a touch stronger toward the edge.</summary>
+        internal static Sprite BlastFill()
         {
-            if (_flash != null) return _flash;
-            const int s = 128;
-            var c = (s - 1) * 0.5f;
-            var white = new Color(1f, 0.98f, 0.88f, 1f);
-            var yellow = new Color(1f, 0.82f, 0.25f, 1f);
-            var orange = new Color(1f, 0.42f, 0.10f, 1f);
-            var tex = StickerRaster.NewTexture(s, s);
-            for (var y = 0; y < s; y++)
-            for (var x = 0; x < s; x++)
+            if (_fill != null) return _fill;
+            _fill = BlastCircle((d, edge) =>
             {
-                var d = Mathf.Sqrt((x - c) * (x - c) + (y - c) * (y - c)) / c;
-                if (d >= 1f)
-                {
-                    tex.SetPixel(x, y, Color.clear);
-                    continue;
-                }
-
-                var col = d < 0.35f
-                    ? Color.Lerp(white, yellow, d / 0.35f)
-                    : Color.Lerp(yellow, orange, (d - 0.35f) / 0.65f);
-                col.a = Mathf.Clamp01((1f - d) * 2.2f) * Mathf.Lerp(0.95f, 0.55f, d);
-                tex.SetPixel(x, y, col);
-            }
-
-            tex.Apply();
-            _flash = Sprite.Create(tex, new Rect(0f, 0f, s, s), new Vector2(0.5f, 0.5f),
-                s / (2f * Dynamite.BlastRadius));
-            return _flash;
+                var col = Color.Lerp(BlastRed, BlastRedHot, 1f - d);
+                col.a = edge * Mathf.Lerp(0.7f, 1f, d * d);
+                return col;
+            });
+            return _fill;
         }
 
-        /// <summary>A soft hollow ring: the shockwave front.</summary>
-        internal static Sprite Ring()
+        /// <summary>Solid red band on the very edge of the blast radius.</summary>
+        internal static Sprite BlastRim()
         {
-            if (_ring != null) return _ring;
-            const int s = 128;
-            var c = (s - 1) * 0.5f;
+            if (_rim != null) return _rim;
+            _rim = BlastCircle((d, edge) =>
+            {
+                // Inner edge of the band, softened over a couple of pixels.
+                var band = Mathf.Clamp01((d - 0.9f) / 0.02f);
+                if (band <= 0f) return Color.clear;
+                var col = Color.Lerp(BlastRed, BlastRedDark, Mathf.InverseLerp(0.9f, 1f, d));
+                col.a = band * edge;
+                return col;
+            });
+            return _rim;
+        }
+
+        /// <summary>
+        /// A circle exactly BlastRadius across at scale 1. shade gets the normalised
+        /// distance from centre and the anti-aliased coverage of the outer edge.
+        /// </summary>
+        private static Sprite BlastCircle(System.Func<float, float, Color> shade)
+        {
+            const int s = 256;
+            var c = s * 0.5f;
             var tex = StickerRaster.NewTexture(s, s);
             for (var y = 0; y < s; y++)
             for (var x = 0; x < s; x++)
             {
-                var d = Mathf.Sqrt((x - c) * (x - c) + (y - c) * (y - c)) / c;
-                var rim = Mathf.InverseLerp(0.72f, 0.95f, d) * Mathf.InverseLerp(1f, 0.95f, d);
-                if (d > 1f || rim <= 0.01f)
-                {
-                    tex.SetPixel(x, y, Color.clear);
-                    continue;
-                }
-
-                var col = Color.Lerp(Red, StickerRaster.Cream, Mathf.InverseLerp(0.72f, 0.95f, d));
-                col.a = Mathf.Clamp01(rim);
-                tex.SetPixel(x, y, col);
+                var px = x + 0.5f - c;
+                var py = y + 0.5f - c;
+                var r = Mathf.Sqrt(px * px + py * py);
+                var edge = Mathf.Clamp01(c - r);
+                tex.SetPixel(x, y, edge <= 0f ? Color.clear : shade(Mathf.Min(r / c, 1f), edge));
             }
 
             tex.Apply();
-            _ring = Sprite.Create(tex, new Rect(0f, 0f, s, s), new Vector2(0.5f, 0.5f),
+            return Sprite.Create(tex, new Rect(0f, 0f, s, s), new Vector2(0.5f, 0.5f),
                 s / (2f * Dynamite.BlastRadius));
-            return _ring;
         }
 
         private static Color StickSample(float x, float y)

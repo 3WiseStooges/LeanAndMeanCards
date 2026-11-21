@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.5.2
+
+- **Dynamite's boom shows the whole blast radius at once.** It goes off as a red circle at
+  the exact damage radius from the first frame (translucent fill, solid rim on the edge),
+  holds for a beat, then fades. In 1.5.1 it grew a pale ring outward and only reached the
+  full radius as it vanished. Still drawn behind players.
+
 ## 1.5.1
 
 - **Pisser stays full auto.** The game only repeats fire on a held trigger while the gun's
