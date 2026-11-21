@@ -62,24 +62,51 @@ namespace LeanAndMeanCards.Utils
         /// The player's two feet, left one first, from the leg rig the game animates.
         /// Tries the drawn legs first (LegRenderer.end), then the IK targets behind them.
         /// Null when no rig is found; the caller falls back to a fixed pose.
+        ///
+        /// The player prefab draws its arms with LegRenderer too: ArmRendererLeft/Right
+        /// run from the shoulder (Arm_Left/Right, x ±0.45) to the Hand, next to
+        /// LegRendererLeft/Right from the hip (LegNew/Left/Right, x ±0.2) to the Foot.
+        /// Taking the outermost LegRenderer pair therefore picked the hands, so each
+        /// renderer is classified by the rig behind it and arms are dropped.
         /// </summary>
         internal static List<Transform> FindFeet(Player player)
         {
             if (player == null) return null;
             var feet = new List<KeyValuePair<Transform, float>>();
+            var unclassified = new List<KeyValuePair<Transform, float>>();
 
-            void Add(Transform foot, Transform hip)
+            void AddTo(List<KeyValuePair<Transform, float>> into, Transform foot, Transform hip)
             {
                 if (foot == null) return;
-                foreach (var f in feet)
+                foreach (var f in into)
                     if (f.Key == foot) return;
                 // Sort on the hip, not the foot: feet cross mid-stride, hips do not.
                 var side = hip != null ? hip.position.x : foot.position.x;
-                feet.Add(new KeyValuePair<Transform, float>(foot, side));
+                into.Add(new KeyValuePair<Transform, float>(foot, side));
             }
 
+            void Add(Transform foot, Transform hip) => AddTo(feet, foot, hip);
+
             foreach (var leg in player.GetComponentsInChildren<LegRenderer>(false))
-                if (leg != null) Add(leg.end, leg.start);
+            {
+                if (leg == null) continue;
+                switch (Classify(leg))
+                {
+                    case Limb.Leg:
+                        Add(leg.end, leg.start);
+                        break;
+                    case Limb.Unknown:
+                        AddTo(unclassified, leg.end, leg.start);
+                        break;
+                }
+            }
+
+            // A modded rig with no IK markers: use whatever was not recognisably an arm.
+            if (feet.Count < 2 && unclassified.Count >= 2)
+            {
+                feet.Clear();
+                feet.AddRange(unclassified);
+            }
 
             if (feet.Count < 2)
             {
@@ -97,9 +124,44 @@ namespace LeanAndMeanCards.Utils
 
             if (feet.Count < 2) return null;
             feet.Sort((a, b) => a.Value.CompareTo(b.Value));
-            // Outermost pair if a mod gave the player extra legs.
+            // Outermost pair if a mod gave the player extra legs (arms are already out).
             return new List<Transform> { feet[0].Key, feet[feet.Count - 1].Key };
         }
+
+        private enum Limb
+        {
+            Leg,
+            Arm,
+            Unknown
+        }
+
+        /// <summary>
+        /// Which limb a LegRenderer draws, from the components on its endpoints' parents.
+        /// Legs hang off IkLeg / LegRotator (LegNew/Left/Rotator/Leg/Knee/Foot); arms off
+        /// IKArmMove / ArmRotator (Arm_Left/Arm/Elbow/Hand). The rig's names are the
+        /// last resort for mods that build their own limbs.
+        /// </summary>
+        private static Limb Classify(LegRenderer renderer)
+        {
+            var start = renderer.start;
+            var end = renderer.end;
+            if (end == null) return Limb.Arm;
+
+            if (Under<IkLeg>(end) || Under<IkLeg>(start) || Under<LegRotator>(end) || Under<IKLegMove>(end))
+                return Limb.Leg;
+            if (Under<IKArmMove>(end) || Under<IKArmMove>(start) || Under<ArmRotator>(end) || Under<ArmRotator>(start))
+                return Limb.Arm;
+
+            if (Named(renderer.transform, "arm") || Named(end, "hand") || Named(start, "arm")) return Limb.Arm;
+            if (Named(renderer.transform, "leg") || Named(end, "foot")) return Limb.Leg;
+            return Limb.Unknown;
+        }
+
+        private static bool Under<T>(Transform t) where T : Component =>
+            t != null && t.GetComponentInParent<T>() != null;
+
+        private static bool Named(Transform t, string part) =>
+            t != null && t.name.IndexOf(part, System.StringComparison.OrdinalIgnoreCase) >= 0;
 
         /// <summary>
         /// Draw order for the marks: in front of the legs (or the shoe would sit behind the

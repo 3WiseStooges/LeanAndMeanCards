@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.5.3
+
+- **Bozo shoes go on the feet, not the hands.** The player rig draws its arms with the same
+  limb renderer as its legs, and the shoulders sit wider than the hips, so 1.5.1's "outermost
+  pair" picked the hands. Each limb is now checked against the rig behind it (the IK legs vs.
+  the arm movers) and arms are skipped.
+
 ## 1.5.2
 
 - **Dynamite's boom shows the whole blast radius at once.** It goes off as a red circle at
